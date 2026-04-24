@@ -28,4 +28,5 @@ uuid = { version = "1.23.1", features = ["v4"] }
 anyhow = "1.0.102"
 trash = "5"
 tauri-plugin-fs = "2"
+dirs-next = "2"
 

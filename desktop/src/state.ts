@@ -33,3 +33,10 @@ class Store {
 }
 
 export const store = new Store();
+
+export function anyWorking(): boolean {
+  for (const r of store.snapshot()) {
+    if (r.status === 'working' || r.status === 'pending') return true;
+  }
+  return false;
+}

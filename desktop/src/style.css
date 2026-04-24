@@ -30,6 +30,9 @@ body { margin: 0; font-family: -apple-system, system-ui, sans-serif; color: var(
 .file-list .size.new { color: var(--good); }
 .file-list .empty { text-align: center; color: var(--text-secondary); padding: 30px; font-size: 13px; }
 #statusbar { padding: 8px 14px; border-top: 1px solid var(--border); background: var(--bg-elevated); font-size: 12px; color: var(--text-secondary); }
+#statusbar { display: flex; justify-content: space-between; align-items: center; }
+#statusbar .link { color: var(--accent); text-decoration: underline; cursor: pointer; }
+#statusbar .good { color: var(--good); }
 #settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .settings-panel { background: var(--bg); border-radius: 8px; padding: 20px 24px; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
 .settings-panel h2 { margin: 0 0 14px; font-size: 16px; }

@@ -1,11 +1,14 @@
 import { mountToolbar } from './ui/toolbar';
 import { mountDropzone } from './ui/dropzone';
 import { mountFileList } from './ui/file-list';
-import { store } from './state';
+import { mountStatusBar } from './ui/statusbar';
+import { store, anyWorking } from './state';
 import { basename } from './util/path';
 import { openSettingsPanel, loadSettings, getSettings } from './ui/settings';
 import { compress, toOpts, onFileDone, onFileError, onFileSkipped, undoLastBatch } from './ipc';
 import { expandPaths } from './fs';
+import { listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 
 function extOf(p: string): string {
   const idx = p.lastIndexOf('.');
@@ -73,5 +76,14 @@ async function main() {
   });
 
   mountFileList(document.getElementById('list')!);
+  mountStatusBar(document.getElementById('statusbar')!);
+
+  listen('close-requested', async () => {
+    if (anyWorking()) {
+      const count = store.snapshot().filter((r) => r.status === 'working' || r.status === 'pending').length;
+      if (!confirm(`${count} files still processing. Quit anyway?`)) return;
+    }
+    await invoke('confirm_close');
+  });
 }
 main();

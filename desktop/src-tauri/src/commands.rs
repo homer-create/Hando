@@ -190,3 +190,40 @@ pub async fn undo_last_batch(batches: State<'_, BatchState>) -> Result<UndoRepor
     let restored = crate::trash::restore_all(&batch.disposals).map_err(|e| e.to_string())?;
     Ok(UndoReport { restored, attempted })
 }
+
+#[tauri::command]
+pub async fn open_trash() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(std::path::PathBuf::from(dirs_next::home_dir().ok_or("no home")?).join(".Trash"))
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg("shell:RecycleBinFolder")
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg("trash:///")
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err("Unsupported platform".into())
+}
+
+use tauri::Window;
+
+#[tauri::command]
+pub async fn confirm_close(window: Window) -> Result<(), String> {
+    window.close().map_err(|e| e.to_string())
+}
