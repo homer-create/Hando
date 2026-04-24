@@ -5,3 +5,6 @@ fixtures/
 .DS_Store
 *.log
 .worktrees/
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/dist/
