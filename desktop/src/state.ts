@@ -24,7 +24,7 @@ class Store {
     this.rows.set(path, { ...r, ...patch });
     this.emit();
   }
-  findById(id: string): FileRow | undefined {
+  snapshotById(id: string): FileRow | undefined {
     for (const r of this.rows.values()) if (r.id === id) return r;
     return undefined;
   }
