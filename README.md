@@ -1,4 +1,4 @@
-# imageopt
+# Hando
 
 Recursively compress images with [Sharp](https://sharp.pixelplumbing.com). Ships as both a CLI and a Tauri desktop app.
 
@@ -8,7 +8,7 @@ Recursively compress images with [Sharp](https://sharp.pixelplumbing.com). Ships
 ## Demo
 
 <!-- TODO: replace with a real screenshot / GIF once recorded -->
-![imageopt desktop demo](docs/demo.gif)
+![Hando desktop demo](docs/demo.gif)
 
 ## CLI
 
@@ -16,21 +16,21 @@ Recursively compress images with [Sharp](https://sharp.pixelplumbing.com). Ships
 
 ```bash
 git clone <this-repo>
-cd ImageOpt
+cd Hando
 npm install
-npm link          # exposes the `imageopt` command globally
+npm link          # exposes the `hando` command globally
 ```
 
 ### Usage
 
 ```bash
-imageopt <input-dir> -o <output-dir>
+hando <input-dir> -o <output-dir>
 ```
 
 Example:
 
 ```bash
-imageopt ./src/images -o ./dist/images
+hando ./src/images -o ./dist/images
 ```
 
 For each `.jpg` / `.jpeg` / `.png` in `<input-dir>`, two files are written:

@@ -7,7 +7,7 @@ import { CONFIG } from './src/config.js';
 import { encode } from './src/encoder.js';
 
 function printUsageAndExit() {
-  console.error('Usage: imageopt <input-dir> -o <output-dir>');
+  console.error('Usage: hando <input-dir> -o <output-dir>');
   process.exit(1);
 }
 

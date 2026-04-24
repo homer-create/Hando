@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "ImageOpt",
+  "productName": "Hando",
   "version": "0.1.0",
-  "identifier": "com.imageopt.app",
+  "identifier": "com.hando.app",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "ImageOpt",
+        "title": "Hando",
         "width": 720,
         "height": 520,
         "minWidth": 560,

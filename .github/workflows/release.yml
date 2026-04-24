@@ -58,12 +58,12 @@ jobs:
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}"
-          Compress-Archive -Path desktop\ImageOpt-portable\* -DestinationPath "ImageOpt-portable-$version.zip"
+          Compress-Archive -Path desktop\Hando-portable\* -DestinationPath "Hando-portable-$version.zip"
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: ImageOpt-portable-*.zip
+          files: Hando-portable-*.zip
           generate_release_notes: true
           draft: false
           prerelease: false

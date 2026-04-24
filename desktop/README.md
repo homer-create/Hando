@@ -1,6 +1,6 @@
-# imageopt desktop
+# Hando desktop
 
-A Tauri 2.x desktop app that wraps the `imageopt` encoder with a drag-and-drop UI, Recycle Bin-backed Undo, and WebP/AVIF companion emission.
+A Tauri 2.x desktop app that wraps the Hando encoder with a drag-and-drop UI, Recycle Bin-backed Undo, and WebP/AVIF companion emission.
 
 ## Features
 

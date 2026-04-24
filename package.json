@@ -1,10 +1,10 @@
 {
-  "name": "imageopt",
+  "name": "hando",
   "version": "0.1.0",
   "description": "Recursively compress images and emit WebP using Sharp.",
   "type": "module",
   "bin": {
-    "imageopt": "./index.js"
+    "hando": "./index.js"
   },
   "scripts": {
     "start": "node index.js"

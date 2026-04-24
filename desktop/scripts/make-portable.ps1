@@ -1,9 +1,9 @@
-# Builds a portable ImageOpt folder for Windows that runs without installation.
+# Builds a portable Hando folder for Windows that runs without installation.
 # Usage (from repo root or anywhere):
-#   cd d:\git\ImageOpt\desktop
+#   cd <repo>\desktop
 #   powershell -ExecutionPolicy Bypass -File scripts\make-portable.ps1
 #
-# Output: desktop\ImageOpt-portable\   (ready to zip and share)
+# Output: desktop\Hando-portable\   (ready to zip and share)
 
 $ErrorActionPreference = "Stop"
 
@@ -12,7 +12,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $DesktopDir = Split-Path -Parent $ScriptDir
 $RepoRoot = Split-Path -Parent $DesktopDir
 $TauriDir = Join-Path $DesktopDir "src-tauri"
-$OutDir = Join-Path $DesktopDir "ImageOpt-portable"
+$OutDir = Join-Path $DesktopDir "Hando-portable"
 $ReleaseDir = Join-Path $TauriDir "target\release"
 
 Write-Host "==> Repo:    $RepoRoot"
@@ -26,13 +26,13 @@ if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 Pop-Location
 
 # 2. Find the produced executable
-$ExeCandidates = @("ImageOpt.exe", "desktop.exe")
+$ExeCandidates = @("Hando.exe", "desktop.exe")
 $Exe = $null
 foreach ($name in $ExeCandidates) {
     $p = Join-Path $ReleaseDir $name
     if (Test-Path $p) { $Exe = $p; break }
 }
-if (-not $Exe) { throw "Couldn't find ImageOpt.exe or desktop.exe in $ReleaseDir" }
+if (-not $Exe) { throw "Couldn't find Hando.exe or desktop.exe in $ReleaseDir" }
 Write-Host "==> Found exe: $Exe"
 
 # 3. Find Node binary
@@ -43,8 +43,8 @@ if (-not (Test-Path $NodeBin)) { throw "Node binary not found at $NodeBin. Run t
 if (Test-Path $OutDir) { Remove-Item -Recurse -Force $OutDir }
 New-Item -ItemType Directory -Path $OutDir | Out-Null
 
-# 5. Copy the main .exe (rename to ImageOpt.exe for branding)
-Copy-Item $Exe (Join-Path $OutDir "ImageOpt.exe")
+# 5. Copy the main .exe (rename to Hando.exe for branding)
+Copy-Item $Exe (Join-Path $OutDir "Hando.exe")
 
 # 6. Copy Node binary (renamed to plain node.exe — matches node_binary() expectation)
 Copy-Item $NodeBin (Join-Path $OutDir "node.exe")
@@ -91,16 +91,16 @@ foreach ($pkg in $SharpPackages) {
 # 9. Create a README for end users
 $ReadmePath = Join-Path $OutDir "README.txt"
 @"
-ImageOpt — Portable Build
+Hando — Portable Build
 ==========================
 
-Double-click ImageOpt.exe to run. No installation required.
+Double-click Hando.exe to run. No installation required.
 
 Tip: On first launch Windows SmartScreen may warn that the app is
      unrecognised. Click "More info" -> "Run anyway".
 
 Files in this folder (do not delete):
-  ImageOpt.exe       the main app
+  Hando.exe          the main app
   node.exe           bundled Node.js runtime
   src\               image-processing scripts
   node_modules\      Sharp image library + dependencies
@@ -113,4 +113,4 @@ a USB drive.
 $SizeMB = [math]::Round((Get-ChildItem -Recurse $OutDir | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
 Write-Host "`n==> Portable build ready at: $OutDir"
 Write-Host "==> Total size: $SizeMB MB"
-Write-Host "==> To distribute: zip the ImageOpt-portable folder and share."
+Write-Host "==> To distribute: zip the Hando-portable folder and share."

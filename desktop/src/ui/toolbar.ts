@@ -7,7 +7,7 @@ export function mountToolbar(
 ): ToolbarApi {
   root.innerHTML = `
     <div class="toolbar">
-      <div class="title">ImageOpt</div>
+      <div class="title">Hando</div>
       <div class="actions">
         <button id="btn-settings" class="btn">⚙ Settings</button>
         <button id="btn-undo" class="btn" disabled>↺ Undo</button>

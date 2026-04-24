@@ -42,7 +42,7 @@ async function handleEncode({ id, src, ext, opts }) {
   }
   let mainTmp;
   try {
-    mainTmp = join(tmpdir(), `imageopt-${randomUUID()}${ext}`);
+    mainTmp = join(tmpdir(), `hando-${randomUUID()}${ext}`);
     const { outBytes } = await encode({ srcPath: src, dstPath: mainTmp, ext, opts });
     const { size: srcBytes } = await stat(src);
     if (outBytes >= srcBytes) {
@@ -52,7 +52,7 @@ async function handleEncode({ id, src, ext, opts }) {
     }
     const companions = [];
     if (opts.emitWebp && ext !== '.webp') {
-      const compTmp = join(tmpdir(), `imageopt-${randomUUID()}.webp`);
+      const compTmp = join(tmpdir(), `hando-${randomUUID()}.webp`);
       try {
         const { outBytes: compBytes } = await encode({
           srcPath: src, dstPath: compTmp, ext: '.webp', opts,
@@ -63,7 +63,7 @@ async function handleEncode({ id, src, ext, opts }) {
       }
     }
     if (opts.emitAvif && ext !== '.avif') {
-      const compTmp = join(tmpdir(), `imageopt-${randomUUID()}.avif`);
+      const compTmp = join(tmpdir(), `hando-${randomUUID()}.avif`);
       try {
         const { outBytes: compBytes } = await encode({
           srcPath: src, dstPath: compTmp, ext: '.avif', opts,

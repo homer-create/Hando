@@ -9,8 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm install                                  # install dependencies
 node index.js <input-dir> -o <output-dir>    # run directly
-npm link                                     # expose `imageopt` globally
-imageopt <input-dir> -o <output-dir>         # run via linked CLI
+npm link                                     # expose `hando` globally
+hando <input-dir> -o <output-dir>            # run via linked CLI
 ```
 
 ### Node tests
