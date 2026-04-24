@@ -23,6 +23,7 @@ pub struct EncodeOpts {
     pub jpeg_quality: u32,
     pub png_quality: u32,
     pub webp_quality: u32,
+    pub avif_quality: u32,
     pub emit_webp: bool,
     pub emit_avif: bool,
 }

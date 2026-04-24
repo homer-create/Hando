@@ -5,6 +5,7 @@ export const ENCODERS = {
   '.jpeg': (pipeline, opts) => pipeline.jpeg({ quality: opts.jpegQuality, mozjpeg: true }),
   '.png':  (pipeline, opts) => pipeline.png({ quality: opts.pngQuality, palette: true, compressionLevel: 9 }),
   '.webp': (pipeline, opts) => pipeline.webp({ quality: opts.webpQuality }),
+  '.avif': (pipeline, opts) => pipeline.avif({ quality: opts.avifQuality }),
 };
 
 export async function encode({ srcPath, dstPath, ext, opts }) {

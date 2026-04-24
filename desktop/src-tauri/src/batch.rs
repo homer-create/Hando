@@ -1,5 +1,6 @@
 use crate::trash::Disposal;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 #[derive(Debug, Default, Clone)]
@@ -23,6 +24,16 @@ impl BatchState {
         let mut cur = self.current.lock().unwrap();
         if let Some(b) = cur.get_mut(batch_id) {
             b.disposals.push(disposal);
+        }
+    }
+    /// Append companion paths to the last recorded disposal for this batch.
+    pub fn record_companion_paths(&self, batch_id: &str, paths: Vec<PathBuf>) {
+        if paths.is_empty() { return; }
+        let mut cur = self.current.lock().unwrap();
+        if let Some(b) = cur.get_mut(batch_id) {
+            if let Some(d) = b.disposals.last_mut() {
+                d.companion_paths.extend(paths);
+            }
         }
     }
     pub fn complete(&self, batch_id: &str) {

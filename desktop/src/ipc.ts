@@ -11,6 +11,7 @@ export interface CompressArgs {
     jpegQuality: number;
     pngQuality: number;
     webpQuality: number;
+    avifQuality: number;
     emitWebp: boolean;
     emitAvif: boolean;
   };
@@ -34,6 +35,7 @@ export function toOpts(s: Settings) {
     jpegQuality: s.jpegQuality,
     pngQuality: s.pngQuality,
     webpQuality: s.webpQuality,
+    avifQuality: s.avifQuality,
     emitWebp: s.emitWebp,
     emitAvif: s.emitAvif,
   };

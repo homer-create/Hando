@@ -124,15 +124,21 @@ async fn apply_done(
 
     place_file(tmp, src_path).await?;
 
-    // Place WebP/AVIF companions alongside the source file
+    // Place WebP/AVIF companions alongside the source file and record their paths for Undo
+    let mut companion_dests: Vec<PathBuf> = vec![];
     for c in companions {
-        let src = Path::new(src_path);
-        let stem = src.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let parent = src.parent().unwrap_or_else(|| Path::new("."));
+        let src_p = Path::new(src_path);
+        let stem = src_p.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let parent = src_p.parent().unwrap_or_else(|| Path::new("."));
         let dest = parent.join(format!("{stem}{}", c.ext));
-        if let Err(e) = place_file(&c.tmp, &dest.to_string_lossy()).await {
-            let _ = app.emit("companion-error", serde_json::json!({ "id": id, "ext": c.ext, "msg": e }));
+        match place_file(&c.tmp, &dest.to_string_lossy()).await {
+            Ok(()) => companion_dests.push(dest),
+            Err(e) => { let _ = app.emit("companion-error", serde_json::json!({ "id": id, "ext": c.ext, "msg": e })); }
         }
+    }
+    if move_to_trash {
+        // Record companion paths so Undo can delete them
+        batches.record_companion_paths(batch_id, companion_dests);
     }
 
     let _ = app.emit("file-done", FileDonePayload {
@@ -227,7 +233,12 @@ pub async fn undo_last_batch(batches: State<'_, BatchState>) -> Result<UndoRepor
     };
     let attempted = batch.disposals.len();
     for d in &batch.disposals {
+        // Delete the compressed file that replaced the original
         let _ = tokio::fs::remove_file(&d.original_path).await;
+        // Delete WebP/AVIF companions
+        for cp in &d.companion_paths {
+            let _ = tokio::fs::remove_file(cp).await;
+        }
     }
     let restored = crate::trash::restore_all(&batch.disposals).map_err(|e| e.to_string())?;
     Ok(UndoReport { restored, attempted })

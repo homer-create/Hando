@@ -4,6 +4,7 @@ export interface Settings {
   jpegQuality: number;
   pngQuality: number;
   webpQuality: number;
+  avifQuality: number;
   emitWebp: boolean;
   emitAvif: boolean;
   moveOriginalsToTrash: boolean;
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: Settings = {
   jpegQuality: 75,
   pngQuality: 75,
   webpQuality: 75,
+  avifQuality: 50,
   emitWebp: false,
   emitAvif: false,
   moveOriginalsToTrash: true,
@@ -68,8 +70,10 @@ export function openSettingsPanel() {
       <input type="range" min="1" max="100" id="png" value="${current.pngQuality}" />
       <label>WebP quality <span id="v-webp">${current.webpQuality}</span></label>
       <input type="range" min="1" max="100" id="webp" value="${current.webpQuality}" />
+      <label>AVIF quality <span id="v-avif">${current.avifQuality}</span></label>
+      <input type="range" min="1" max="100" id="avif" value="${current.avifQuality}" />
       <label><input type="checkbox" id="emitWebp" ${current.emitWebp ? 'checked' : ''} /> Also emit WebP alongside</label>
-      <label><input type="checkbox" id="emitAvif" disabled /> Also emit AVIF (coming soon)</label>
+      <label><input type="checkbox" id="emitAvif" ${current.emitAvif ? 'checked' : ''} /> Also emit AVIF alongside</label>
       <label><input type="checkbox" id="trash" ${current.moveOriginalsToTrash ? 'checked' : ''} /> Move originals to Trash</label>
       <div class="settings-actions"><button id="done" class="btn">Done</button></div>
     </div>`;
@@ -87,7 +91,9 @@ export function openSettingsPanel() {
   bindRange('jpeg', 'jpegQuality');
   bindRange('png', 'pngQuality');
   bindRange('webp', 'webpQuality');
+  bindRange('avif', 'avifQuality');
   (overlay.querySelector('#emitWebp') as HTMLInputElement).onchange = (e) => { current.emitWebp = (e.target as HTMLInputElement).checked; saveSettings(current); };
+  (overlay.querySelector('#emitAvif') as HTMLInputElement).onchange = (e) => { current.emitAvif = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#trash') as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#done') as HTMLButtonElement).onclick = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });

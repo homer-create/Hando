@@ -11,6 +11,7 @@ pub enum DisposalKind {
 pub struct Disposal {
     pub original_path: PathBuf,
     pub kind: DisposalKind,
+    pub companion_paths: Vec<PathBuf>,
 }
 
 /// Strip the `\\?\` extended-path prefix that Windows `canonicalize()` adds.
@@ -30,7 +31,7 @@ fn strip_extended_prefix(p: PathBuf) -> PathBuf {
 pub fn dispose_original(path: &Path) -> Result<Disposal> {
     let abs = strip_extended_prefix(path.canonicalize()?);
     match trash::delete(&abs) {
-        Ok(()) => Ok(Disposal { original_path: abs, kind: DisposalKind::Trashed }),
+        Ok(()) => Ok(Disposal { original_path: abs, kind: DisposalKind::Trashed, companion_paths: vec![] }),
         Err(primary) => {
             let backup = fallback_backup_path(&abs);
             std::fs::rename(&abs, &backup).map_err(|secondary| {
@@ -39,6 +40,7 @@ pub fn dispose_original(path: &Path) -> Result<Disposal> {
             Ok(Disposal {
                 original_path: abs,
                 kind: DisposalKind::RenamedFallback { backup_path: backup },
+                companion_paths: vec![],
             })
         }
     }

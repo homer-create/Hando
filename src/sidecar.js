@@ -60,6 +60,17 @@ async function handleEncode({ id, src, ext, opts }) {
         emit({ type: 'companion-error', id, ext: '.webp', msg: err.message });
       }
     }
+    if (opts.emitAvif && ext !== '.avif') {
+      const compTmp = join(tmpdir(), `imageopt-${randomUUID()}.avif`);
+      try {
+        const { outBytes: compBytes } = await encode({
+          srcPath: src, dstPath: compTmp, ext: '.avif', opts,
+        });
+        companions.push({ ext: '.avif', tmp: compTmp, outBytes: compBytes });
+      } catch (err) {
+        emit({ type: 'companion-error', id, ext: '.avif', msg: err.message });
+      }
+    }
     emit({ type: 'done', id, tmp: mainTmp, srcBytes, outBytes, companions });
   } catch (err) {
     if (mainTmp) await unlink(mainTmp).catch(() => {});
