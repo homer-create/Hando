@@ -85,5 +85,15 @@ async function main() {
     }
     await invoke('confirm_close');
   });
+
+  listen('sidecar-crashed', () => {
+    const snap = store.snapshot();
+    for (const r of snap) {
+      if (r.status === 'pending' || r.status === 'working') {
+        store.update(r.path, { status: 'error', errorMsg: 'Engine crashed' });
+      }
+    }
+    alert('Image engine crashed. It will restart on the next drop.');
+  });
 }
 main();

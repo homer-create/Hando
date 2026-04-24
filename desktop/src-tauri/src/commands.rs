@@ -47,24 +47,39 @@ pub struct FileErrorPayload {
 pub struct UndoReport { pub restored: usize, pub attempted: usize }
 
 fn sidecar_script_path(app: &AppHandle) -> PathBuf {
-    let resource_dir = app.path().resource_dir().ok();
-    if let Some(dir) = resource_dir {
-        let candidate = dir.join("sidecar/sidecar.js");
+    if let Ok(dir) = app.path().resource_dir() {
+        let candidate = dir.join("src/sidecar.js");
         if candidate.exists() { return candidate; }
     }
     let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     here.join("../../src/sidecar.js").canonicalize().unwrap_or(here)
 }
 
+fn node_binary(app: &AppHandle) -> PathBuf {
+    if let Ok(dir) = app.path().resource_dir() {
+        #[cfg(target_os = "windows")]
+        let bundled = dir.join("node.exe");
+        #[cfg(not(target_os = "windows"))]
+        let bundled = dir.join("node");
+        if bundled.exists() { return bundled; }
+    }
+    PathBuf::from("node")
+}
+
 async fn ensure_sidecar(app: &AppHandle, state: &SidecarState) -> Result<(), String> {
     let mut guard = state.0.lock().await;
     if guard.is_some() { return Ok(()); }
     let script = sidecar_script_path(app);
-    let sc = Sidecar::spawn(PathBuf::from("node"), script)
+    let node = node_binary(app);
+    let sc = Sidecar::spawn(app.clone(), node, script)
         .await
         .map_err(|e| e.to_string())?;
     *guard = Some(sc);
     Ok(())
+}
+
+pub async fn on_sidecar_crashed(sc_state: &SidecarState) {
+    *sc_state.0.lock().await = None;
 }
 
 async fn apply_done(
