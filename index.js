@@ -2,14 +2,7 @@
 import { stat, readdir, mkdir } from 'node:fs/promises';
 import { resolve, join, extname, relative, dirname } from 'node:path';
 import sharp from 'sharp';
-
-const CONFIG = {
-  JPEG_QUALITY: 75,
-  PNG_QUALITY: 75,
-  WEBP_QUALITY: 75,
-  EXTENSIONS: ['.jpg', '.jpeg', '.png', '.webp'],
-  CONCURRENCY: 4,
-};
+import { CONFIG } from './src/config.js';
 
 function printUsageAndExit() {
   console.error('Usage: imageopt <input-dir> -o <output-dir>');
