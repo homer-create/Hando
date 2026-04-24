@@ -4,7 +4,7 @@ import { mountFileList } from './ui/file-list';
 import { store } from './state';
 import { basename } from './util/path';
 import { openSettingsPanel, loadSettings, getSettings } from './ui/settings';
-import { compress, toOpts, onFileDone, onFileError, onFileSkipped } from './ipc';
+import { compress, toOpts, onFileDone, onFileError, onFileSkipped, undoLastBatch } from './ipc';
 
 function extOf(p: string): string {
   const idx = p.lastIndexOf('.');
@@ -31,9 +31,21 @@ async function main() {
     store.update(row.path, { status: 'skipped-no-gain', srcBytes: p.srcBytes });
   });
 
-  mountToolbar(document.getElementById('toolbar')!, {
+  const toolbar = mountToolbar(document.getElementById('toolbar')!, {
     onSettings: () => openSettingsPanel(),
-    onUndo: () => console.log('undo clicked'),
+    onUndo: async () => {
+      const r = await undoLastBatch();
+      console.log(`undone: ${r.restored}/${r.attempted}`);
+      toolbar.setUndoEnabled(false);
+      store.clear();
+    },
+  });
+
+  // Enable Undo when at least one row is done and none are working
+  store.subscribe((rows) => {
+    const hasTerminal = rows.some((r) => r.status === 'done');
+    const anyWorking = rows.some((r) => r.status === 'working' || r.status === 'pending');
+    toolbar.setUndoEnabled(hasTerminal && !anyWorking);
   });
 
   mountDropzone(document.getElementById('dropzone')!, async (paths) => {

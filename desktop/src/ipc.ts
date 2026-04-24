@@ -38,3 +38,8 @@ export function toOpts(s: Settings) {
     emitAvif: s.emitAvif,
   };
 }
+
+export interface UndoReport { restored: number; attempted: number; }
+export async function undoLastBatch(): Promise<UndoReport> {
+  return invoke<UndoReport>('undo_last_batch');
+}

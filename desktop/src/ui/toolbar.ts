@@ -1,4 +1,8 @@
-export function mountToolbar(root: HTMLElement, handlers: { onSettings: () => void; onUndo: () => void }) {
+export interface ToolbarApi { setUndoEnabled(enabled: boolean): void; }
+export function mountToolbar(
+  root: HTMLElement,
+  handlers: { onSettings: () => void; onUndo: () => void },
+): ToolbarApi {
   root.innerHTML = `
     <div class="toolbar">
       <div class="title">ImageOpt</div>
@@ -7,6 +11,8 @@ export function mountToolbar(root: HTMLElement, handlers: { onSettings: () => vo
         <button id="btn-undo" class="btn" disabled>↺ Undo</button>
       </div>
     </div>`;
+  const undoBtn = root.querySelector('#btn-undo') as HTMLButtonElement;
   (root.querySelector('#btn-settings') as HTMLButtonElement).onclick = handlers.onSettings;
-  (root.querySelector('#btn-undo') as HTMLButtonElement).onclick = handlers.onUndo;
+  undoBtn.onclick = handlers.onUndo;
+  return { setUndoEnabled: (v: boolean) => { undoBtn.disabled = !v; } };
 }
