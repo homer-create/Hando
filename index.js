@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { stat, readdir } from 'node:fs/promises';
-import { resolve, join, extname, relative } from 'node:path';
+import { stat, readdir, mkdir } from 'node:fs/promises';
+import { resolve, join, extname, relative, dirname } from 'node:path';
+import sharp from 'sharp';
 
 const CONFIG = {
   JPEG_QUALITY: 75,
@@ -87,6 +88,50 @@ async function needsRebuild(srcPath, outPath) {
   return srcStat.mtimeMs > outStat.mtimeMs;
 }
 
+function encodeForExt(pipeline, ext) {
+  switch (ext) {
+    case '.jpg':
+    case '.jpeg':
+      return pipeline.jpeg({ quality: CONFIG.JPEG_QUALITY, mozjpeg: true });
+    case '.png':
+      return pipeline.png({ quality: CONFIG.PNG_QUALITY, palette: true, compressionLevel: 9 });
+    case '.webp':
+      return pipeline.webp({ quality: CONFIG.WEBP_QUALITY });
+    default:
+      throw new Error(`Unsupported extension: ${ext}`);
+  }
+}
+
+async function writeIfNeeded(srcPath, outPath, encodeFn) {
+  if (!(await needsRebuild(srcPath, outPath))) {
+    return { wrote: false, srcBytes: 0, outBytes: 0 };
+  }
+  await mkdir(dirname(outPath), { recursive: true });
+  const pipeline = encodeFn(sharp(srcPath));
+  const { size: outBytes } = await pipeline.toFile(outPath);
+  const { size: srcBytes } = await stat(srcPath);
+  return { wrote: true, srcBytes, outBytes };
+}
+
+async function processFile(file, outputRoot) {
+  const outSameFormat = join(outputRoot, file.relPath);
+  const outWebp = join(
+    outputRoot,
+    file.relPath.replace(new RegExp(`${file.ext.replace('.', '\\.')}$`, 'i'), '.webp'),
+  );
+
+  const results = [];
+  if (file.ext !== '.webp') {
+    results.push(
+      await writeIfNeeded(file.absPath, outSameFormat, (p) => encodeForExt(p, file.ext)),
+    );
+  }
+  results.push(
+    await writeIfNeeded(file.absPath, outWebp, (p) => encodeForExt(p, '.webp')),
+  );
+  return results;
+}
+
 async function main() {
   const { input, output } = parseArgs(process.argv);
   await validateInputDir(input);
@@ -94,7 +139,24 @@ async function main() {
   console.log(`Output: ${output}`);
   const files = await discoverImages(input);
   console.log(`Found ${files.length} images`);
-  for (const f of files) console.log(`  ${f.relPath}`);
+  let processed = 0, skipped = 0, failed = 0, srcTotal = 0, outTotal = 0;
+  for (const file of files) {
+    try {
+      const results = await processFile(file, output);
+      for (const r of results) {
+        if (r.wrote) { processed++; srcTotal += r.srcBytes; outTotal += r.outBytes; }
+        else skipped++;
+      }
+    } catch (err) {
+      failed++;
+      console.warn(`WARN: failed ${file.relPath}: ${err.message}`);
+    }
+  }
+  console.log(`Processed: ${processed}   Skipped: ${skipped}   Failed: ${failed}`);
+  if (srcTotal > 0) {
+    const savedKB = ((srcTotal - outTotal) / 1024).toFixed(1);
+    console.log(`Saved: ${savedKB} KB`);
+  }
 }
 
 main().catch((err) => {
