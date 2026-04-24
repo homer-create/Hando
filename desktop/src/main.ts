@@ -1,22 +1,23 @@
-import { invoke } from "@tauri-apps/api/core";
+import { mountToolbar } from './ui/toolbar';
+import { mountDropzone } from './ui/dropzone';
+import { mountFileList } from './ui/file-list';
+import { store } from './state';
+import { basename } from './util/path';
 
-let greetInputEl: HTMLInputElement | null;
-let greetMsgEl: HTMLElement | null;
+mountToolbar(document.getElementById('toolbar')!, {
+  onSettings: () => console.log('settings clicked'),
+  onUndo: () => console.log('undo clicked'),
+});
 
-async function greet() {
-  if (greetMsgEl && greetInputEl) {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsgEl.textContent = await invoke("greet", {
-      name: greetInputEl.value,
+mountDropzone(document.getElementById('dropzone')!, (paths) => {
+  for (const p of paths) {
+    store.upsert({
+      id: crypto.randomUUID(),
+      path: p,
+      name: basename(p),
+      status: 'pending',
     });
   }
-}
-
-window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
 });
+
+mountFileList(document.getElementById('list')!);
