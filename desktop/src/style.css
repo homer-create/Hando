@@ -33,6 +33,9 @@ body { margin: 0; font-family: -apple-system, system-ui, sans-serif; color: var(
 #statusbar { display: flex; justify-content: space-between; align-items: center; }
 #statusbar .link { color: var(--accent); text-decoration: underline; cursor: pointer; }
 #statusbar .good { color: var(--good); }
+.progress-wrap { display: inline-block; width: 120px; height: 6px; background: var(--border); border-radius: 3px; vertical-align: middle; overflow: hidden; margin-right: 8px; }
+.progress-bar { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.2s ease; }
+.progress-label { vertical-align: middle; }
 #settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .settings-panel { background: var(--bg); border-radius: 8px; padding: 20px 24px; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
 .settings-panel h2 { margin: 0 0 14px; font-size: 16px; }
