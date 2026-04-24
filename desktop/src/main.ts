@@ -3,22 +3,27 @@ import { mountDropzone } from './ui/dropzone';
 import { mountFileList } from './ui/file-list';
 import { store } from './state';
 import { basename } from './util/path';
-import { openSettingsPanel, setSettings } from './ui/settings';
+import { openSettingsPanel, loadSettings } from './ui/settings';
 
-mountToolbar(document.getElementById('toolbar')!, {
-  onSettings: () => openSettingsPanel((s) => setSettings(s)),
-  onUndo: () => console.log('undo clicked'),
-});
+async function main() {
+  await loadSettings();
 
-mountDropzone(document.getElementById('dropzone')!, (paths) => {
-  for (const p of paths) {
-    store.upsert({
-      id: crypto.randomUUID(),
-      path: p,
-      name: basename(p),
-      status: 'pending',
-    });
-  }
-});
+  mountToolbar(document.getElementById('toolbar')!, {
+    onSettings: () => openSettingsPanel(),
+    onUndo: () => console.log('undo clicked'),
+  });
 
-mountFileList(document.getElementById('list')!);
+  mountDropzone(document.getElementById('dropzone')!, (paths) => {
+    for (const p of paths) {
+      store.upsert({
+        id: crypto.randomUUID(),
+        path: p,
+        name: basename(p),
+        status: 'pending',
+      });
+    }
+  });
+
+  mountFileList(document.getElementById('list')!);
+}
+main();

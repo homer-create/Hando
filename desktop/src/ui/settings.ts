@@ -1,9 +1,11 @@
+import { Store } from '@tauri-apps/plugin-store';
+
 export interface Settings {
   jpegQuality: number;
   pngQuality: number;
   webpQuality: number;
   emitWebp: boolean;
-  emitAvif: boolean;            // disabled in UI for v1
+  emitAvif: boolean;
   moveOriginalsToTrash: boolean;
   concurrency: number;
 }
@@ -18,12 +20,41 @@ export const DEFAULT_SETTINGS: Settings = {
   concurrency: 4,
 };
 
+const SETTINGS_FILE = 'settings.json';
+let storePromise: Promise<Store> | null = null;
+
+function getStore(): Promise<Store> {
+  if (!storePromise) storePromise = Store.load(SETTINGS_FILE);
+  return storePromise;
+}
+
 let current: Settings = { ...DEFAULT_SETTINGS };
 
-export function getSettings(): Settings { return { ...current }; }
-export function setSettings(next: Settings) { current = { ...next }; }
+export async function loadSettings(): Promise<Settings> {
+  try {
+    const s = await getStore();
+    const persisted = await s.get<Settings>('settings');
+    if (persisted) current = { ...DEFAULT_SETTINGS, ...persisted };
+  } catch (err) {
+    console.warn('settings load failed, using defaults:', err);
+  }
+  return { ...current };
+}
 
-export function openSettingsPanel(onChange: (s: Settings) => void) {
+export async function saveSettings(next: Settings): Promise<void> {
+  current = { ...next };
+  try {
+    const s = await getStore();
+    await s.set('settings', current);
+    await s.save();
+  } catch (err) {
+    console.error('settings save failed:', err);
+  }
+}
+
+export function getSettings(): Settings { return { ...current }; }
+
+export function openSettingsPanel() {
   const existing = document.getElementById('settings-overlay');
   if (existing) existing.remove();
   const overlay = document.createElement('div');
@@ -47,13 +78,17 @@ export function openSettingsPanel(onChange: (s: Settings) => void) {
   const bindRange = (id: string, key: keyof Settings) => {
     const el = overlay.querySelector(`#${id}`) as HTMLInputElement;
     const label = overlay.querySelector(`#v-${id}`) as HTMLElement;
-    el.oninput = () => { label.textContent = el.value; (current as any)[key] = parseInt(el.value, 10); onChange({ ...current }); };
+    el.oninput = () => {
+      label.textContent = el.value;
+      (current as any)[key] = parseInt(el.value, 10);
+      saveSettings(current);
+    };
   };
   bindRange('jpeg', 'jpegQuality');
   bindRange('png', 'pngQuality');
   bindRange('webp', 'webpQuality');
-  (overlay.querySelector('#emitWebp') as HTMLInputElement).onchange = (e) => { current.emitWebp = (e.target as HTMLInputElement).checked; onChange({ ...current }); };
-  (overlay.querySelector('#trash') as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; onChange({ ...current }); };
+  (overlay.querySelector('#emitWebp') as HTMLInputElement).onchange = (e) => { current.emitWebp = (e.target as HTMLInputElement).checked; saveSettings(current); };
+  (overlay.querySelector('#trash') as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#done') as HTMLButtonElement).onclick = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 }
