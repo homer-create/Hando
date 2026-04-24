@@ -5,6 +5,7 @@ import { store } from './state';
 import { basename } from './util/path';
 import { openSettingsPanel, loadSettings, getSettings } from './ui/settings';
 import { compress, toOpts, onFileDone, onFileError, onFileSkipped, undoLastBatch } from './ipc';
+import { expandPaths } from './fs';
 
 function extOf(p: string): string {
   const idx = p.lastIndexOf('.');
@@ -49,15 +50,15 @@ async function main() {
   });
 
   mountDropzone(document.getElementById('dropzone')!, async (paths) => {
-    const files = paths.map((p) => ({
+    const { files: expandedPaths, skipped } = await expandPaths(paths);
+    if (skipped > 0) console.log(`Skipped ${skipped} unsupported`);
+    const files = expandedPaths.map((p) => ({
       id: crypto.randomUUID(),
       path: p,
       ext: extOf(p),
       name: basename(p),
     }));
-    for (const f of files) {
-      store.upsert({ id: f.id, path: f.path, name: f.name, status: 'working' });
-    }
+    for (const f of files) store.upsert({ id: f.id, path: f.path, name: f.name, status: 'working' });
     try {
       await compress({
         batchId: crypto.randomUUID(),
@@ -67,9 +68,7 @@ async function main() {
       });
     } catch (err) {
       console.error('compress failed:', err);
-      for (const f of files) {
-        store.update(f.path, { status: 'error', errorMsg: String(err) });
-      }
+      for (const f of files) store.update(f.path, { status: 'error', errorMsg: String(err) });
     }
   });
 

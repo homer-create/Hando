@@ -7,6 +7,8 @@
     "core:default",
     "core:event:default",
     "opener:default",
-    "store:default"
+    "store:default",
+    "fs:allow-read-dir",
+    "fs:allow-stat"
   ]
 }
