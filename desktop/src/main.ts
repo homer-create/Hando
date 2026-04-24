@@ -3,9 +3,10 @@ import { mountDropzone } from './ui/dropzone';
 import { mountFileList } from './ui/file-list';
 import { store } from './state';
 import { basename } from './util/path';
+import { openSettingsPanel, setSettings } from './ui/settings';
 
 mountToolbar(document.getElementById('toolbar')!, {
-  onSettings: () => console.log('settings clicked'),
+  onSettings: () => openSettingsPanel((s) => setSettings(s)),
   onUndo: () => console.log('undo clicked'),
 });
 
