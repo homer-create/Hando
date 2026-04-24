@@ -154,6 +154,7 @@ async function main() {
   const files = await discoverImages(input);
   console.log(`Found ${files.length} images`);
   let processed = 0, skipped = 0, failed = 0, srcTotal = 0, outTotal = 0;
+  const startedAt = Date.now();
   const perFile = await runPool(files, CONFIG.CONCURRENCY, async (file) => {
     try {
       const results = await processFile(file, output);
@@ -170,11 +171,9 @@ async function main() {
       else skipped++;
     }
   }
+  const seconds = ((Date.now() - startedAt) / 1000).toFixed(2);
   console.log(`Processed: ${processed}   Skipped: ${skipped}   Failed: ${failed}`);
-  if (srcTotal > 0) {
-    const savedKB = ((srcTotal - outTotal) / 1024).toFixed(1);
-    console.log(`Saved: ${savedKB} KB`);
-  }
+  console.log(`Time: ${seconds}s${srcTotal > 0 ? `     Saved: ${((srcTotal - outTotal) / 1024).toFixed(1)} KB` : ''}`);
 }
 
 main().catch((err) => {
