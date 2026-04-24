@@ -102,3 +102,42 @@ test('no-gain skip: already-compressed tiny file', async () => {
   assert.ok(skip, `expected skipped-no-gain, got: ${out}`);
   assert.ok(skip.srcBytes > 0);
 });
+
+test('sidecar processes multiple commands in order and emits per-id done', async () => {
+  const src = resolve(join(TMP, 'big.jpg'));
+  const { out } = await runSidecar([
+    { cmd: 'encode', id: 'a', src, ext: '.jpg', opts: { jpegQuality: 75 } },
+    { cmd: 'encode', id: 'b', src, ext: '.jpg', opts: { jpegQuality: 60 } },
+    { cmd: 'encode', id: 'c', src, ext: '.jpg', opts: { jpegQuality: 40 } },
+  ]);
+  const lines = out.trim().split('\n').map((l) => JSON.parse(l));
+  const ids = lines.filter((l) => l.type === 'done').map((l) => l.id).sort();
+  assert.deepEqual(ids, ['a', 'b', 'c']);
+});
+
+test('emitWebp produces a companion entry in done event', async () => {
+  const src = resolve(join(TMP, 'big.jpg'));
+  const { out } = await runSidecar([
+    { cmd: 'encode', id: 'x', src, ext: '.jpg', opts: { jpegQuality: 75, webpQuality: 75, emitWebp: true } },
+  ]);
+  const lines = out.trim().split('\n').map((l) => JSON.parse(l));
+  const done = lines.find((l) => l.type === 'done' && l.id === 'x');
+  assert.ok(done);
+  assert.equal(done.companions.length, 1);
+  assert.equal(done.companions[0].ext, '.webp');
+  assert.ok(done.companions[0].tmp && done.companions[0].tmp.endsWith('.webp'));
+  assert.ok(done.companions[0].outBytes > 0);
+});
+
+test('companion encode failure emits companion-error but main still done', async () => {
+  const src = resolve(join(TMP, 'big.jpg'));
+  // Force companion failure by requesting webpQuality at an invalid value that sharp rejects
+  const { out } = await runSidecar([
+    { cmd: 'encode', id: 'y', src, ext: '.jpg', opts: { jpegQuality: 75, webpQuality: 9999, emitWebp: true } },
+  ]);
+  const lines = out.trim().split('\n').map((l) => JSON.parse(l));
+  const done = lines.find((l) => l.type === 'done' && l.id === 'y');
+  const warn = lines.find((l) => l.type === 'companion-error' && l.id === 'y');
+  assert.ok(done, 'main encode should still succeed');
+  assert.ok(warn, 'companion failure should be surfaced');
+});
