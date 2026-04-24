@@ -71,6 +71,22 @@ async function discoverImages(rootDir) {
   return results;
 }
 
+async function needsRebuild(srcPath, outPath) {
+  let srcStat;
+  try {
+    srcStat = await stat(srcPath);
+  } catch {
+    return false;
+  }
+  let outStat;
+  try {
+    outStat = await stat(outPath);
+  } catch {
+    return true;
+  }
+  return srcStat.mtimeMs > outStat.mtimeMs;
+}
+
 async function main() {
   const { input, output } = parseArgs(process.argv);
   await validateInputDir(input);
