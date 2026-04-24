@@ -107,7 +107,16 @@ async fn apply_done(
     } else {
         tokio::fs::remove_file(src_path).await.map_err(|e| e.to_string())?;
     }
-    tokio::fs::rename(tmp, src_path).await.map_err(|e| e.to_string())?;
+    // Atomic rename; fall back to copy+delete for cross-device moves (Windows C:\Temp → D:\...)
+    if let Err(_rename_err) = tokio::fs::rename(tmp, src_path).await {
+        match tokio::fs::copy(tmp, src_path).await {
+            Ok(_) => { let _ = tokio::fs::remove_file(tmp).await; }
+            Err(copy_err) => {
+                let _ = tokio::fs::remove_file(tmp).await;
+                return Err(format!("could not place compressed file: {copy_err}"));
+            }
+        }
+    }
     let _ = app.emit("file-done", FileDonePayload {
         id: id.to_string(),
         tmp: tmp.to_string(),
