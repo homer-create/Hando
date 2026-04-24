@@ -52,7 +52,7 @@ async function main() {
     toolbar.setUndoEnabled(hasTerminal && !anyWorking);
   });
 
-  mountDropzone(document.getElementById('dropzone')!, async (paths) => {
+  await mountDropzone(document.getElementById('dropzone')!, async (paths) => {
     const { files: expandedPaths, skipped } = await expandPaths(paths);
     if (skipped > 0) console.log(`Skipped ${skipped} unsupported`);
     const files = expandedPaths.map((p) => ({
