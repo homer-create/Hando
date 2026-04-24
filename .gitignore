@@ -10,3 +10,5 @@ desktop/src-tauri/target/
 desktop/dist/
 desktop/src-tauri/.cargo/
 desktop/src-tauri/binaries/node*
+desktop/ImageOpt-portable/
+desktop/ImageOpt-portable*.zip

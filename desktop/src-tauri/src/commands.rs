@@ -46,22 +46,44 @@ pub struct FileErrorPayload {
 #[serde(rename_all = "camelCase")]
 pub struct UndoReport { pub restored: usize, pub attempted: usize }
 
-fn sidecar_script_path(app: &AppHandle) -> PathBuf {
+/// Resolve a resource path, checking in order:
+/// 1. Tauri's `resource_dir()` (installed / MSI / NSIS)
+/// 2. The directory containing the running executable (portable mode)
+/// 3. The dev fallback relative to `CARGO_MANIFEST_DIR`
+fn resolve_resource(app: &AppHandle, rel: &str, dev_rel: &str) -> PathBuf {
     if let Ok(dir) = app.path().resource_dir() {
-        let candidate = dir.join("src/sidecar.js");
+        let candidate = dir.join(rel);
         if candidate.exists() { return candidate; }
     }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let candidate = exe_dir.join(rel);
+            if candidate.exists() { return candidate; }
+        }
+    }
     let here = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    here.join("../../src/sidecar.js").canonicalize().unwrap_or(here)
+    here.join(dev_rel).canonicalize().unwrap_or(here)
+}
+
+fn sidecar_script_path(app: &AppHandle) -> PathBuf {
+    resolve_resource(app, "src/sidecar.js", "../../src/sidecar.js")
 }
 
 fn node_binary(app: &AppHandle) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    let name = "node.exe";
+    #[cfg(not(target_os = "windows"))]
+    let name = "node";
+
     if let Ok(dir) = app.path().resource_dir() {
-        #[cfg(target_os = "windows")]
-        let bundled = dir.join("node.exe");
-        #[cfg(not(target_os = "windows"))]
-        let bundled = dir.join("node");
+        let bundled = dir.join(name);
         if bundled.exists() { return bundled; }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let candidate = exe_dir.join(name);
+            if candidate.exists() { return candidate; }
+        }
     }
     PathBuf::from("node")
 }
