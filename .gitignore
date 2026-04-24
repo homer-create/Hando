@@ -4,3 +4,4 @@ fixtures/
 .superpowers/
 .DS_Store
 *.log
+.worktrees/
