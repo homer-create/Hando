@@ -14,6 +14,7 @@ export interface CompressArgs {
     emitWebp: boolean;
     emitAvif: boolean;
   };
+  moveOriginalsToTrash: boolean;
 }
 
 export async function compress(args: CompressArgs): Promise<void> {

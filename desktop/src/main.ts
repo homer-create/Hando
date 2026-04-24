@@ -51,6 +51,7 @@ async function main() {
         batchId: crypto.randomUUID(),
         files: files.map(({ id, path, ext }) => ({ id, path, ext })),
         opts: toOpts(getSettings()),
+        moveOriginalsToTrash: getSettings().moveOriginalsToTrash,
       });
     } catch (err) {
       console.error('compress failed:', err);
