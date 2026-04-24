@@ -13,8 +13,22 @@ pub struct Disposal {
     pub kind: DisposalKind,
 }
 
+/// Strip the `\\?\` extended-path prefix that Windows `canonicalize()` adds.
+/// `trash::os_limited::list()` returns plain paths; without stripping,
+/// the comparison fails and Undo can't find the item in the Recycle Bin.
+fn strip_extended_prefix(p: PathBuf) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let s = p.to_string_lossy();
+        if let Some(stripped) = s.strip_prefix("\\\\?\\") {
+            return PathBuf::from(stripped);
+        }
+    }
+    p
+}
+
 pub fn dispose_original(path: &Path) -> Result<Disposal> {
-    let abs = path.canonicalize()?;
+    let abs = strip_extended_prefix(path.canonicalize()?);
     match trash::delete(&abs) {
         Ok(()) => Ok(Disposal { original_path: abs, kind: DisposalKind::Trashed }),
         Err(primary) => {
@@ -53,7 +67,11 @@ pub fn restore_all(disposals: &[Disposal]) -> Result<usize> {
         match trash::os_limited::list() {
             Ok(items) => {
                 for want in &trashed_targets {
-                    if let Some(item) = items.iter().find(|i| PathBuf::from(&i.original_parent).join(&i.name) == **want) {
+                    let want_norm = strip_extended_prefix((*want).clone());
+                    if let Some(item) = items.iter().find(|i| {
+                        let item_path = strip_extended_prefix(PathBuf::from(&i.original_parent).join(&i.name));
+                        item_path == want_norm
+                    }) {
                         if trash::os_limited::restore_all([item.clone()]).is_ok() {
                             restored += 1;
                         }
