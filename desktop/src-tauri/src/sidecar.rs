@@ -16,7 +16,7 @@ pub struct EncodeCommand {
     pub opts: EncodeOpts,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EncodeOpts {
     pub jpeg_quality: u32,
