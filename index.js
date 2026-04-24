@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { stat, readdir } from 'node:fs/promises';
+import { resolve, join, extname, relative } from 'node:path';
 
 const CONFIG = {
   JPEG_QUALITY: 75,
@@ -47,11 +47,38 @@ async function validateInputDir(dir) {
   }
 }
 
+async function discoverImages(rootDir) {
+  const results = [];
+  async function walk(dir) {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(full);
+      } else if (entry.isFile()) {
+        const ext = extname(entry.name).toLowerCase();
+        if (CONFIG.EXTENSIONS.includes(ext)) {
+          results.push({
+            absPath: full,
+            relPath: relative(rootDir, full),
+            ext,
+          });
+        }
+      }
+    }
+  }
+  await walk(rootDir);
+  return results;
+}
+
 async function main() {
   const { input, output } = parseArgs(process.argv);
   await validateInputDir(input);
   console.log(`Input:  ${input}`);
   console.log(`Output: ${output}`);
+  const files = await discoverImages(input);
+  console.log(`Found ${files.length} images`);
+  for (const f of files) console.log(`  ${f.relPath}`);
 }
 
 main().catch((err) => {
