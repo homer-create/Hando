@@ -1,3 +1,6 @@
+// Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use crate::batch::BatchState;
 use crate::sidecar::{EncodeCommand, EncodeOpts, Sidecar, SidecarEvent};
 use serde::{Deserialize, Serialize};

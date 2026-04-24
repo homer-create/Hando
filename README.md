@@ -5,6 +5,11 @@ Recursively compress images with [Sharp](https://sharp.pixelplumbing.com). Ships
 - **CLI** — batch-compress a directory tree, emit `.webp` companions for `<picture>` fallback, and skip unchanged files on re-runs.
 - **Desktop app** — drag-and-drop compression with Recycle Bin-backed Undo, optional WebP/AVIF companion output, and per-format quality settings. See [`desktop/`](./desktop).
 
+## Demo
+
+<!-- TODO: replace with a real screenshot / GIF once recorded -->
+![imageopt desktop demo](docs/demo.gif)
+
 ## CLI
 
 ### Install
@@ -82,3 +87,20 @@ desktop/
   src-tauri/                 Rust host (tokio, trash, IPC)
 docs/superpowers/            specs and implementation plans
 ```
+
+## License
+
+Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+
+This program is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later) as published by the Free Software Foundation. See [`LICENSE`](./LICENSE) for the full text.
+
+AGPL's network clause means anyone who runs a modified version as a network service must also make their source available to users of that service. If that is incompatible with your use case, please open an issue to discuss commercial licensing.
+
+### Third-party components
+
+- [sharp](https://github.com/lovell/sharp) — Apache-2.0
+- [libvips](https://github.com/libvips/libvips) — LGPL-2.1+
+- [Tauri](https://tauri.app) — MIT / Apache-2.0
+- [trash (Rust crate)](https://crates.io/crates/trash) — MIT
+
+All are compatible with AGPL-3.0 as downstream dependencies.

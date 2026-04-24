@@ -1,3 +1,5 @@
+// Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { readDir, stat } from '@tauri-apps/plugin-fs';
 
 const SUPPORTED = new Set(['.jpg', '.jpeg', '.png', '.webp']);

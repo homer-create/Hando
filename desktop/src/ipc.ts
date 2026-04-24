@@ -1,3 +1,5 @@
+// Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Settings } from './ui/settings';

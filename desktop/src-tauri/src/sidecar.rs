@@ -1,3 +1,6 @@
+// Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;

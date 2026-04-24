@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { createInterface } from 'node:readline';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
