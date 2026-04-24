@@ -132,6 +132,20 @@ async function processFile(file, outputRoot) {
   return results;
 }
 
+async function runPool(items, limit, worker) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 async function main() {
   const { input, output } = parseArgs(process.argv);
   await validateInputDir(input);
@@ -140,16 +154,20 @@ async function main() {
   const files = await discoverImages(input);
   console.log(`Found ${files.length} images`);
   let processed = 0, skipped = 0, failed = 0, srcTotal = 0, outTotal = 0;
-  for (const file of files) {
+  const perFile = await runPool(files, CONFIG.CONCURRENCY, async (file) => {
     try {
       const results = await processFile(file, output);
-      for (const r of results) {
-        if (r.wrote) { processed++; srcTotal += r.srcBytes; outTotal += r.outBytes; }
-        else skipped++;
-      }
+      return { ok: true, results };
     } catch (err) {
-      failed++;
       console.warn(`WARN: failed ${file.relPath}: ${err.message}`);
+      return { ok: false };
+    }
+  });
+  for (const item of perFile) {
+    if (!item.ok) { failed++; continue; }
+    for (const r of item.results) {
+      if (r.wrote) { processed++; srcTotal += r.srcBytes; outTotal += r.outBytes; }
+      else skipped++;
     }
   }
   console.log(`Processed: ${processed}   Skipped: ${skipped}   Failed: ${failed}`);
