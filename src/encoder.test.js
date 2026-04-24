@@ -1,9 +1,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, rm, stat } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { ENCODERS, encode } from './encoder.js';
+
+const execFileAsync = promisify(execFile);
 
 const TMP = './fixtures/test-encoder';
 
@@ -21,7 +25,19 @@ before(async () => {
 });
 
 after(async () => {
-  await rm(TMP, { recursive: true, force: true });
+  // On Windows, Sharp's native addon holds file handles until GC after
+  // toFile() / metadata() resolve. Use the shell-level rd command as it
+  // can schedule deletion even for files with open handles.
+  await new Promise((r) => setTimeout(r, 200));
+  try {
+    await rm(TMP, { recursive: true, force: true });
+  } catch (e) {
+    if (e.code === 'EBUSY' && process.platform === 'win32') {
+      await execFileAsync('cmd.exe', ['/c', 'rd', '/s', '/q', TMP.replace(/\//g, '\\')]);
+    } else {
+      throw e;
+    }
+  }
 });
 
 test('ENCODERS has entries for jpg/jpeg/png/webp', () => {
