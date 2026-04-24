@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { stat, readdir, mkdir } from 'node:fs/promises';
 import { resolve, join, extname, relative, dirname } from 'node:path';
-import sharp from 'sharp';
 import { CONFIG } from './src/config.js';
+import { encode } from './src/encoder.js';
 
 function printUsageAndExit() {
   console.error('Usage: imageopt <input-dir> -o <output-dir>');
@@ -81,27 +81,12 @@ async function needsRebuild(srcPath, outPath) {
   return srcStat.mtimeMs > outStat.mtimeMs;
 }
 
-function encodeForExt(pipeline, ext) {
-  switch (ext) {
-    case '.jpg':
-    case '.jpeg':
-      return pipeline.jpeg({ quality: CONFIG.JPEG_QUALITY, mozjpeg: true });
-    case '.png':
-      return pipeline.png({ quality: CONFIG.PNG_QUALITY, palette: true, compressionLevel: 9 });
-    case '.webp':
-      return pipeline.webp({ quality: CONFIG.WEBP_QUALITY });
-    default:
-      throw new Error(`Unsupported extension: ${ext}`);
-  }
-}
-
-async function writeIfNeeded(srcPath, outPath, encodeFn) {
+async function writeIfNeeded(srcPath, outPath, ext, opts) {
   if (!(await needsRebuild(srcPath, outPath))) {
     return { wrote: false, srcBytes: 0, outBytes: 0 };
   }
   await mkdir(dirname(outPath), { recursive: true });
-  const pipeline = encodeFn(sharp(srcPath));
-  const { size: outBytes } = await pipeline.toFile(outPath);
+  const { outBytes } = await encode({ srcPath, dstPath: outPath, ext, opts });
   const { size: srcBytes } = await stat(srcPath);
   return { wrote: true, srcBytes, outBytes };
 }
@@ -112,16 +97,16 @@ async function processFile(file, outputRoot) {
     outputRoot,
     file.relPath.replace(new RegExp(`${file.ext.replace('.', '\\.')}$`, 'i'), '.webp'),
   );
-
+  const opts = {
+    jpegQuality: CONFIG.JPEG_QUALITY,
+    pngQuality: CONFIG.PNG_QUALITY,
+    webpQuality: CONFIG.WEBP_QUALITY,
+  };
   const results = [];
   if (file.ext !== '.webp') {
-    results.push(
-      await writeIfNeeded(file.absPath, outSameFormat, (p) => encodeForExt(p, file.ext)),
-    );
+    results.push(await writeIfNeeded(file.absPath, outSameFormat, file.ext, opts));
   }
-  results.push(
-    await writeIfNeeded(file.absPath, outWebp, (p) => encodeForExt(p, '.webp')),
-  );
+  results.push(await writeIfNeeded(file.absPath, outWebp, '.webp', opts));
   return results;
 }
 
