@@ -44,15 +44,16 @@ async function main() {
   await mkdir(distDir, { recursive: true });
 
   const niceName = `Hando-${platTag}-${archTag}-v${version}${ext}`;
-  const dstPath = join(distDir, niceName);
-  await copyFile(srcBinary, dstPath);
-  console.log(`Renamed: ${dstPath}`);
 
-  // macOS .app is a directory bundle — must zip. Windows .exe uploads directly.
-  if (plat !== 'win32') {
-    const zipName = `${niceName}.zip`;
-    const zipPath = join(distDir, zipName);
-    await zipFile(dstPath, zipPath);
+  if (plat === 'win32') {
+    // Single file — copy with new name, upload directly.
+    const dstPath = join(distDir, niceName);
+    await copyFile(srcBinary, dstPath);
+    console.log(`Renamed: ${dstPath}`);
+  } else {
+    // .app is a directory bundle — zip directly from source, skip intermediate copy.
+    const zipPath = join(distDir, `${niceName}.zip`);
+    await zipFile(srcBinary, zipPath);
     console.log(`Zipped:  ${zipPath}`);
   }
 }
