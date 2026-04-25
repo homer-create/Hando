@@ -79,11 +79,16 @@ pub struct Sidecar {
 
 impl Sidecar {
     pub async fn spawn(app: AppHandle, node_path: PathBuf, script_path: PathBuf) -> Result<Self> {
-        let mut child = Command::new(&node_path)
-            .arg(&script_path)
+        let mut cmd = Command::new(&node_path);
+        cmd.arg(&script_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        #[cfg(target_os = "windows")]
+        {
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        let mut child = cmd
             .spawn()
             .with_context(|| format!("failed to spawn {:?}", node_path))?;
 

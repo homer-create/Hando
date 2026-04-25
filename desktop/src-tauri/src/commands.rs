@@ -299,9 +299,8 @@ pub async fn open_trash() -> Result<(), String> {
     Err("Unsupported platform".into())
 }
 
-use tauri::Window;
-
 #[tauri::command]
-pub async fn confirm_close(window: Window) -> Result<(), String> {
-    window.close().map_err(|e| e.to_string())
+pub async fn confirm_close(app: tauri::AppHandle) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
 }
