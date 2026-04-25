@@ -35,3 +35,29 @@ tauri-plugin-fs = "2"
 dirs-next = "2"
 tauri-plugin-dialog = "2"
 
+# Image processing — Rust-native encoders
+image = { version = "0.25", default-features = false, features = ["png", "webp", "avif"] }
+mozjpeg = "0.10"
+oxipng = { version = "10", default-features = false, features = ["parallel"] }
+imagequant = "4"
+webp = "0.3"
+ravif = { version = "0.13", default-features = false, features = [] }
+kamadak-exif = "0.6"
+num_cpus = "1"
+thiserror = "2"
+
+[dev-dependencies]
+insta = { version = "1", features = ["json"] }
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = 3
+panic = "unwind"
+
+[[bin]]
+name = "generate-fixtures"
+path = "tests/fixtures/generate.rs"
+
