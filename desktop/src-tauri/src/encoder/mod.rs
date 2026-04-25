@@ -63,6 +63,7 @@ pub struct EncodeRequest<'a> {
     pub src_path: &'a Path,
     pub ext: ImageExt,
     pub opts: &'a EncodeOpts,
+    pub progress_cb: Option<Box<dyn Fn(u8) + Send>>,
 }
 
 #[derive(Debug)]
@@ -107,15 +108,22 @@ pub enum EncodeError {
 ///
 /// CPU-bound; callers should run via `tokio::task::spawn_blocking`.
 pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
+    let progress = |pct: u8| {
+        if let Some(cb) = &req.progress_cb { cb(pct); }
+    };
+
+    progress(5);
     let decoded = decode::decode(req.src_path, req.ext)?;
+    progress(20);
     let src_bytes = std::fs::metadata(req.src_path)?.len();
 
     let main = match req.ext {
         ImageExt::Jpeg => jpeg::encode(&decoded, req.opts.jpeg_quality)?,
-        ImageExt::Png => png::encode(&decoded, req.opts.png_quality)?,
+        ImageExt::Png  => png::encode(&decoded, req.opts.png_quality)?,
         ImageExt::Webp => webp::encode(&decoded, req.opts.webp_quality)?,
         ImageExt::Avif => avif::encode(&decoded, req.opts.avif_quality)?,
     };
+    progress(75);
 
     // Skip if savings are less than 2% of the source — prevents endless re-compression
     // of already-optimized files where the encoder finds only marginal improvements.
@@ -128,16 +136,17 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
 
     if req.opts.emit_webp && req.ext != ImageExt::Webp {
         match webp::encode(&decoded, req.opts.webp_quality) {
-            Ok(f) => companions.push(f),
+            Ok(f)  => companions.push(f),
             Err(e) => companion_errors.push(CompanionError { ext: ImageExt::Webp, msg: e.to_string() }),
         }
     }
     if req.opts.emit_avif && req.ext != ImageExt::Avif {
         match avif::encode(&decoded, req.opts.avif_quality) {
-            Ok(f) => companions.push(f),
+            Ok(f)  => companions.push(f),
             Err(e) => companion_errors.push(CompanionError { ext: ImageExt::Avif, msg: e.to_string() }),
         }
     }
+    progress(85);
 
     Ok(EncodeOutcome::Encoded(EncodeResult { main, companions, companion_errors }))
 }
@@ -201,6 +210,7 @@ mod tests {
             src_path: &fixture("landscape.jpg"),
             ext: ImageExt::Jpeg,
             opts: &o,
+            progress_cb: None,
         }).unwrap();
         match outcome {
             EncodeOutcome::Encoded(r) => {
@@ -223,6 +233,7 @@ mod tests {
             src_path: &fixture("landscape.jpg"),
             ext: ImageExt::Jpeg,
             opts: &o,
+            progress_cb: None,
         }).unwrap();
         if let EncodeOutcome::Encoded(r) = outcome {
             assert_eq!(r.companions.len(), 1);
@@ -239,6 +250,7 @@ mod tests {
             src_path: &fixture("tiny.png"),
             ext: ImageExt::Png,
             opts: &o,
+            progress_cb: None,
         }).unwrap();
         assert!(matches!(outcome, EncodeOutcome::SkippedNoGain { .. }));
     }
@@ -250,6 +262,7 @@ mod tests {
             src_path: &fixture("corrupt.jpg"),
             ext: ImageExt::Jpeg,
             opts: &o,
+            progress_cb: None,
         });
         assert!(matches!(result, Err(EncodeError::Decode(_))));
     }
@@ -266,6 +279,7 @@ mod tests {
             src_path: &webp_encoded.tmp_path,
             ext: ImageExt::Webp,
             opts: &o,
+            progress_cb: None,
         });
 
         // Clean up temp file

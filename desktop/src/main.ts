@@ -7,7 +7,7 @@ import { mountStatusBar } from './ui/statusbar';
 import { store, anyWorking } from './state';
 import { basename } from './util/path';
 import { openSettingsPanel, loadSettings, getSettings } from './ui/settings';
-import { compress, toOpts, onFileDone, onFileError, onFileSkipped, onBatchDone, undoLastBatch } from './ipc';
+import { compress, toOpts, onFileDone, onFileError, onFileSkipped, onBatchDone, onFileProgress, undoLastBatch } from './ipc';
 import { expandPaths } from './fs';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
@@ -38,6 +38,11 @@ async function main() {
     const row = store.snapshotById(p.id);
     if (!row) return;
     store.update(row.path, { status: 'skipped-no-gain', srcBytes: p.srcBytes });
+  });
+  onFileProgress((p) => {
+    const row = store.snapshotById(p.id);
+    if (!row) return;
+    store.update(row.path, { progress: p.pct });
   });
 
   const toolbar = mountToolbar(document.getElementById('toolbar')!, {

@@ -17,15 +17,21 @@ export function mountStatusBar(root: HTMLElement) {
   function render(rows: FileRow[]) {
     const total = rows.length;
     const working = rows.filter((r) => r.status === 'working' || r.status === 'pending').length;
-    const completed = rows.filter((r) => r.status === 'done' || r.status === 'error' || r.status === 'skipped-no-gain').length;
 
     if (total > 0 && working > 0) {
-      const pct = Math.round((completed / total) * 100);
+      // Weighted average: done/error/skipped = 100, working = their progress%
+      const overallPct = Math.round(
+        rows.reduce((sum, r) => {
+          if (r.status === 'done' || r.status === 'error' || r.status === 'skipped-no-gain') return sum + 100;
+          return sum + (r.progress ?? 0);
+        }, 0) / total
+      );
+      const completed = rows.filter((r) => r.status === 'done' || r.status === 'error' || r.status === 'skipped-no-gain').length;
       left.innerHTML = `
         <span class="progress-wrap">
-          <span class="progress-bar ${working > 0 ? 'progress-bar--active' : ''}" style="width:${pct}%"></span>
+          <span class="progress-bar ${working > 0 ? 'progress-bar--active' : ''}" style="width:${overallPct}%"></span>
         </span>
-        <span class="progress-label">${t('statusbar.progress', { completed, total, pct })}</span>`;
+        <span class="progress-label">${t('statusbar.progress', { completed, total, pct: overallPct })}</span>`;
     } else {
       let saved = 0;
       let done = 0;

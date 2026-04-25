@@ -46,7 +46,7 @@ fn batch_lifecycle_emits_one_batch_done_for_three_files() {
         let o = opts();
         handles.push(thread::spawn(move || {
             // Run the encode (we don't do the actual file replacement in this test)
-            let _outcome = encode(EncodeRequest { src_path: &path, ext, opts: &o });
+            let _outcome = encode(EncodeRequest { src_path: &path, ext, opts: &o, progress_cb: None });
             // Tick regardless of outcome (mirrors what commands.rs does)
             s.tick("batch-A", &*snk);
         }));
@@ -63,6 +63,7 @@ fn corrupt_input_encode_returns_decode_error() {
         src_path: &fixture("corrupt.jpg"),
         ext: ImageExt::Jpeg,
         opts: &opts(),
+        progress_cb: None,
     });
     assert!(
         matches!(result, Err(desktop_lib::encoder::EncodeError::Decode(_))),
@@ -80,6 +81,7 @@ fn webp_and_avif_companions_emitted_when_enabled() {
         src_path: &fixture("landscape.jpg"),
         ext: ImageExt::Jpeg,
         opts: &o,
+        progress_cb: None,
     }).unwrap();
 
     if let EncodeOutcome::Encoded(r) = outcome {

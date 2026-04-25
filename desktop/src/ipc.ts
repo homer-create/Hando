@@ -30,10 +30,13 @@ export interface FileErrorPayload { id: string; msg: string; }
 export interface FileSkippedPayload { id: string; srcBytes: number; }
 export interface BatchDonePayload { batchId: string; }
 
+export interface FileProgressPayload { id: string; pct: number; }
+
 export function onFileDone(cb: (p: FileDonePayload) => void) { return listen<FileDonePayload>('file-done', (e) => cb(e.payload)); }
 export function onFileError(cb: (p: FileErrorPayload) => void) { return listen<FileErrorPayload>('file-error', (e) => cb(e.payload)); }
 export function onFileSkipped(cb: (p: FileSkippedPayload) => void) { return listen<FileSkippedPayload>('file-skipped', (e) => cb(e.payload)); }
 export function onBatchDone(cb: (p: BatchDonePayload) => void) { return listen<BatchDonePayload>('batch-done', (e) => cb(e.payload)); }
+export function onFileProgress(cb: (p: FileProgressPayload) => void) { return listen<FileProgressPayload>('file-progress', (e) => cb(e.payload)); }
 
 export function toOpts(s: Settings) {
   return {

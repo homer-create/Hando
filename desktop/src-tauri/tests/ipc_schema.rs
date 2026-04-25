@@ -48,3 +48,9 @@ fn batch_done_payload_schema() {
     let p = BatchDonePayload { batch_id: "batch-1".into() };
     insta::assert_json_snapshot!(p);
 }
+
+#[test]
+fn file_progress_payload_schema() {
+    let p = FileProgressPayload { id: "abc-123".into(), pct: 50 };
+    insta::assert_json_snapshot!(p);
+}

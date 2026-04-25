@@ -47,6 +47,13 @@ pub struct BatchDonePayload {
     pub batch_id: String,
 }
 
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FileProgressPayload {
+    pub id: String,
+    pub pct: u8,
+}
+
 pub trait EventSink: Send + Sync {
     fn emit_file_done(&self, p: FileDonePayload);
     fn emit_file_error(&self, p: FileErrorPayload);
@@ -54,6 +61,7 @@ pub trait EventSink: Send + Sync {
     fn emit_companion_error(&self, p: CompanionErrorPayload);
     fn emit_trash_fallback(&self, p: TrashFallbackPayload);
     fn emit_batch_done(&self, p: BatchDonePayload);
+    fn emit_file_progress(&self, p: FileProgressPayload);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +72,7 @@ pub enum MockEvent {
     CompanionError(CompanionErrorPayload),
     TrashFallback(TrashFallbackPayload),
     BatchDone(BatchDonePayload),
+    FileProgress(FileProgressPayload),
 }
 
 #[derive(Default)]
@@ -87,6 +96,7 @@ impl EventSink for MockSink {
     fn emit_companion_error(&self, p: CompanionErrorPayload) { self.push(MockEvent::CompanionError(p)); }
     fn emit_trash_fallback(&self, p: TrashFallbackPayload) { self.push(MockEvent::TrashFallback(p)); }
     fn emit_batch_done(&self, p: BatchDonePayload) { self.push(MockEvent::BatchDone(p)); }
+    fn emit_file_progress(&self, p: FileProgressPayload) { self.push(MockEvent::FileProgress(p)); }
 }
 
 // ---- Production sink (Tauri-specific) ----
@@ -119,6 +129,9 @@ impl EventSink for TauriEmitter {
     }
     fn emit_batch_done(&self, p: BatchDonePayload) {
         let _ = self.app.emit("batch-done", p);
+    }
+    fn emit_file_progress(&self, p: FileProgressPayload) {
+        let _ = self.app.emit("file-progress", p);
     }
 }
 

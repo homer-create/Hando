@@ -6,7 +6,7 @@ use crate::encoder::{
     self,
     event_sink::{
         CompanionErrorPayload, EventSink, FileDonePayload, FileErrorPayload,
-        FileSkippedPayload, TauriEmitter, TrashFallbackPayload,
+        FileProgressPayload, FileSkippedPayload, TauriEmitter, TrashFallbackPayload,
     },
     EncodeOpts, EncodeOutcome, EncodeRequest, ImageExt,
 };
@@ -152,12 +152,22 @@ pub async fn compress(
             let f_clone = f.clone();
             let opts_inner = opts_c.clone();
 
+            // Clone what the progress callback needs
+            let sink_for_progress = sink_c.clone();
+            let id_for_progress = f.id.clone();
+
             let result = tokio::task::spawn_blocking(move || -> Result<encoder::EncodeOutcome, encoder::EncodeError> {
                 let ext = ImageExt::from_str(&f_clone.ext)?;
                 encoder::encode(EncodeRequest {
                     src_path: Path::new(&f_clone.path),
                     ext,
                     opts: &opts_inner,
+                    progress_cb: Some(Box::new(move |pct: u8| {
+                        sink_for_progress.emit_file_progress(FileProgressPayload {
+                            id: id_for_progress.clone(),
+                            pct,
+                        });
+                    })),
                 })
             }).await;
 
