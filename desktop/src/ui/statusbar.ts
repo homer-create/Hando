@@ -23,7 +23,7 @@ export function mountStatusBar(root: HTMLElement) {
       const pct = Math.round((completed / total) * 100);
       left.innerHTML = `
         <span class="progress-wrap">
-          <span class="progress-bar" style="width:${pct}%"></span>
+          <span class="progress-bar ${working > 0 ? 'progress-bar--active' : ''}" style="width:${pct}%"></span>
         </span>
         <span class="progress-label">${t('statusbar.progress', { completed, total, pct })}</span>`;
     } else {

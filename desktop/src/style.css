@@ -54,6 +54,13 @@ body { margin: 0; font-family: -apple-system, system-ui, sans-serif; color: var(
 #statusbar .good { color: var(--good); }
 .progress-wrap { display: inline-block; width: 120px; height: 6px; background: var(--border); border-radius: 3px; vertical-align: middle; overflow: hidden; margin-right: 8px; }
 .progress-bar { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.2s ease; }
+.progress-bar--active {
+  animation: progress-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes progress-shimmer {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
 .progress-label { vertical-align: middle; }
 #settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .settings-panel { background: var(--bg); border-radius: 8px; padding: 20px 24px; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border); }

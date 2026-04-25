@@ -66,6 +66,8 @@ async function main() {
       ext: extOf(p),
       name: basename(p),
     }));
+    // Clear previous results when starting a new batch (but not if a batch is actively in progress)
+    if (!anyWorking()) store.clear();
     for (const f of files) store.upsert({ id: f.id, path: f.path, name: f.name, status: 'working' });
     try {
       await compress({

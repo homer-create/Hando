@@ -117,7 +117,9 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
         ImageExt::Avif => avif::encode(&decoded, req.opts.avif_quality)?,
     };
 
-    if main.bytes >= src_bytes {
+    // Skip if savings are less than 2% of the source — prevents endless re-compression
+    // of already-optimized files where the encoder finds only marginal improvements.
+    if main.bytes * 100 >= src_bytes * 98 {
         return Ok(EncodeOutcome::SkippedNoGain { src_bytes });
     }
 
