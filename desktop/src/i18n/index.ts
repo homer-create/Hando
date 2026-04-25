@@ -1,6 +1,7 @@
 // Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import en, { type Messages } from './locales/en';
+import zhTW from './locales/zh-TW';
 
 export type LocaleCode = 'en' | 'zh-TW' | 'zh-CN' | 'ja' | 'ko' | 'es' | 'pt';
 export type LanguageSetting = 'auto' | LocaleCode;
@@ -18,7 +19,7 @@ export type MessageKey = Leaves<Messages>;
 
 const LOCALES: Record<LocaleCode, Messages> = {
   'en': en,
-  'zh-TW': en,   // placeholders — replaced in later tasks
+  'zh-TW': zhTW,
   'zh-CN': en,
   'ja': en,
   'ko': en,
