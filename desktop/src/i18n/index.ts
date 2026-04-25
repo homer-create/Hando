@@ -2,6 +2,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import en, { type Messages } from './locales/en';
 import zhTW from './locales/zh-TW';
+import zhCN from './locales/zh-CN';
+import ja from './locales/ja';
+import ko from './locales/ko';
+import es from './locales/es';
+import pt from './locales/pt';
 
 export type LocaleCode = 'en' | 'zh-TW' | 'zh-CN' | 'ja' | 'ko' | 'es' | 'pt';
 export type LanguageSetting = 'auto' | LocaleCode;
@@ -20,11 +25,11 @@ export type MessageKey = Leaves<Messages>;
 const LOCALES: Record<LocaleCode, Messages> = {
   'en': en,
   'zh-TW': zhTW,
-  'zh-CN': en,
-  'ja': en,
-  'ko': en,
-  'es': en,
-  'pt': en,
+  'zh-CN': zhCN,
+  'ja': ja,
+  'ko': ko,
+  'es': es,
+  'pt': pt,
 };
 
 let currentLocale: LocaleCode = 'en';
