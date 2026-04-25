@@ -874,6 +874,7 @@ dependencies = [
  "num_cpus",
  "oxipng",
  "ravif",
+ "rgb",
  "serde",
  "serde_json",
  "tauri",
