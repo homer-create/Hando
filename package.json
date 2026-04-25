@@ -1,19 +1,7 @@
 {
-  "name": "hando",
+  "name": "hando-monorepo",
   "version": "0.1.0",
-  "description": "Recursively compress images and emit WebP using Sharp.",
-  "type": "module",
-  "bin": {
-    "hando": "./index.js"
-  },
-  "scripts": {
-    "start": "node index.js"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "license": "AGPL-3.0-or-later",
-  "dependencies": {
-    "sharp": "^0.34.5"
-  }
+  "private": true,
+  "description": "Hando — desktop image optimizer (root metadata only; see desktop/ for the app)",
+  "license": "AGPL-3.0-or-later"
 }
