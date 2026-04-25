@@ -26,12 +26,15 @@ async function main() {
 
   const plat = platform(); // 'win32', 'darwin', 'linux'
   const a = arch();        // 'x64', 'arm64'
+  const target = process.env.TARGET || ''; // e.g. 'universal-apple-darwin'
 
   const platTag = plat === 'win32' ? 'win' : plat === 'darwin' ? 'mac' : plat;
+  const archTag = target === 'universal-apple-darwin' ? 'universal' : a;
   const ext = plat === 'win32' ? '.exe' : '.app';
+  const releaseDir = target ? `src-tauri/target/${target}/release` : 'src-tauri/target/release';
   const srcBinary = plat === 'win32'
-    ? join(ROOT, 'src-tauri/target/release/hando.exe')
-    : join(ROOT, 'src-tauri/target/release/bundle/macos/Hando.app');
+    ? join(ROOT, `${releaseDir}/hando.exe`)
+    : join(ROOT, `${releaseDir}/bundle/macos/Hando.app`);
 
   await stat(srcBinary).catch(() => {
     throw new Error(`Binary not found at ${srcBinary} — run \`npm run tauri build\` first`);
@@ -40,7 +43,7 @@ async function main() {
   const distDir = join(ROOT, 'dist-final');
   await mkdir(distDir, { recursive: true });
 
-  const niceName = `Hando-${platTag}-${a}-v${version}${ext}`;
+  const niceName = `Hando-${platTag}-${archTag}-v${version}${ext}`;
   const dstPath = join(distDir, niceName);
   await copyFile(srcBinary, dstPath);
   console.log(`Renamed: ${dstPath}`);

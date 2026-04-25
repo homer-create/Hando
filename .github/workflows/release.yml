@@ -66,3 +66,13 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      - name: Build portable artifact
+        env:
+          TARGET: ${{ matrix.platform == 'macos-14' && 'universal-apple-darwin' || '' }}
+        run: node scripts/build-dist.mjs
+
+      - name: Upload portable artifact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload ${{ github.ref_name }} dist-final/* --clobber
