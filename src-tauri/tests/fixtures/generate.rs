@@ -1,7 +1,7 @@
 // Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Synthetic test fixture generator. Run with `cargo run --bin generate-fixtures`.
+// Synthetic test fixture generator. Run with `cargo run --example generate-fixtures --features generate-fixtures`.
 // Outputs to `tests/fixtures/` relative to the Cargo manifest.
 
 use std::fs;

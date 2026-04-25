@@ -59,7 +59,11 @@ strip = true
 opt-level = 3
 panic = "unwind"
 
-[[bin]]
+[[example]]
 name = "generate-fixtures"
 path = "tests/fixtures/generate.rs"
+required-features = ["generate-fixtures"]
+
+[features]
+generate-fixtures = []
 

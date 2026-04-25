@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > See [docs/release-checklist.md](docs/release-checklist.md).
 
 ### Fixed
+- **macOS CI bundle** — `generate-fixtures` moved from `[[bin]]` to `[[example]]`; Tauri bundles all `[[bin]]` entries but skips examples, so the bundler no longer tries to copy the uncompiled dev utility and fails with "does not exist"
 - **macOS build** — `trash::os_limited` (list + restore) is gated to Windows/Linux in `trash` 5.x; wrapped the undo restore path in `#[cfg(...)]` so macOS compiles cleanly (trashed files remain in Trash on macOS, as the crate exposes no programmatic restore API there)
 - **CI release creation** — added `permissions: contents: write` to `release.yml`; without it `GITHUB_TOKEN` couldn't create the draft release
 
