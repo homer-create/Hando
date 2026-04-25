@@ -42,6 +42,7 @@ oxipng = { version = "10", default-features = false, features = ["parallel"] }
 imagequant = "4"
 webp = "0.3"
 ravif = { version = "0.13", default-features = false, features = [] }
+rgb = "0.8"
 kamadak-exif = "0.6"
 num_cpus = "1"
 thiserror = "2"
