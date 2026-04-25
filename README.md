@@ -1,4 +1,4 @@
-# Hando
+<h1><img src="src-tauri/icons/128x128.png" width="36" height="36" align="center" alt=""> Hando</h1>
 
 A single-file desktop image optimizer for Windows and macOS. Drag images in, get smaller files out. No installer, no Node runtime, no companion folders.
 
