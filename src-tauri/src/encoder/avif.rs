@@ -4,14 +4,17 @@
 use super::{decode::DecodedImage, EncodeError, EncodedFile, ImageExt};
 use std::io::Write;
 use tempfile::NamedTempFile;
+use num_cpus;
 
-/// Threshold in pixels above which we use 1 thread instead of 2 to keep RAM bounded.
-const HIGH_RES_PIXEL_THRESHOLD: u64 = 8_000_000;
+/// Threads dedicated to a single AVIF encode: half the logical CPUs, clamped to [2, 4].
+/// The outer spawn_blocking semaphore already limits file-level concurrency, so giving
+/// each AVIF task more threads doesn't cause runaway contention on typical machines.
+fn avif_thread_count() -> usize {
+    (num_cpus::get() / 2).clamp(2, 4)
+}
 
 pub fn encode(decoded: &DecodedImage, quality: u32) -> Result<EncodedFile, EncodeError> {
     let q = quality.clamp(1, 100) as f32;
-    let pixels = (decoded.width as u64) * (decoded.height as u64);
-    let threads = if pixels > HIGH_RES_PIXEL_THRESHOLD { 1 } else { 2 };
 
     let img = ravif::Img::new(
         rgba_as_ravif_pixels(&decoded.rgba),
@@ -21,8 +24,8 @@ pub fn encode(decoded: &DecodedImage, quality: u32) -> Result<EncodedFile, Encod
 
     let result = ravif::Encoder::new()
         .with_quality(q)
-        .with_speed(6)
-        .with_num_threads(Some(threads))
+        .with_speed(8)
+        .with_num_threads(Some(avif_thread_count()))
         .encode_rgba(img)
         .map_err(|e| EncodeError::Encode(format!("ravif: {e}")))?;
 

@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > See [docs/release-checklist.md](docs/release-checklist.md).
 
 ### Changed
+- **AVIF encoding speed** — `ravif` speed raised from 6 → 8 and per-encode thread count changed from a fixed 1–2 to `num_cpus / 2` clamped to [2, 4]; typical encode time drops ~3-4x with negligible quality difference
 - **Replaced Node sidecar with Rust-native encoder** — encoding pipeline now runs entirely in-process via Rust crates; eliminates the bundled Node binary and JSON-lines sidecar protocol
 - Standalone CLI (`index.js`) removed; desktop app is now the only artifact
 - Portable build script replaced with a `dist/` artifact organizer
