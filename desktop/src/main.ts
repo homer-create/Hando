@@ -11,6 +11,7 @@ import { compress, toOpts, onFileDone, onFileError, onFileSkipped, undoLastBatch
 import { expandPaths } from './fs';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import * as i18n from './i18n';
 
 function extOf(p: string): string {
   const idx = p.lastIndexOf('.');
@@ -19,8 +20,8 @@ function extOf(p: string): string {
 
 async function main() {
   await loadSettings();
+  i18n.init(getSettings().language);
 
-  // Task 14: Subscribe to sidecar events BEFORE mounting UI
   onFileDone((p) => {
     const row = store.snapshotById(p.id);
     if (!row) return;
@@ -47,14 +48,13 @@ async function main() {
     },
   });
 
-  // Enable Undo when at least one row is done and none are working
   store.subscribe((rows) => {
     const hasTerminal = rows.some((r) => r.status === 'done');
     const anyWorking = rows.some((r) => r.status === 'working' || r.status === 'pending');
     toolbar.setUndoEnabled(hasTerminal && !anyWorking);
   });
 
-  await mountDropzone(document.getElementById('dropzone')!, async (paths) => {
+  const dropzone = await mountDropzone(document.getElementById('dropzone')!, async (paths) => {
     const { files: expandedPaths, skipped } = await expandPaths(paths);
     if (skipped > 0) console.log(`Skipped ${skipped} unsupported`);
     const files = expandedPaths.map((p) => ({
@@ -80,10 +80,12 @@ async function main() {
   mountFileList(document.getElementById('list')!);
   mountStatusBar(document.getElementById('statusbar')!);
 
+  i18n.onLocaleChange(() => { toolbar.refresh(); dropzone.refresh(); });
+
   listen('close-requested', async () => {
     if (anyWorking()) {
       const count = store.snapshot().filter((r) => r.status === 'working' || r.status === 'pending').length;
-      if (!confirm(`${count} files still processing. Quit anyway?`)) return;
+      if (!confirm(i18n.t('confirm.quitProcessing', { count }))) return;
     }
     await invoke('confirm_close');
   });
@@ -95,7 +97,7 @@ async function main() {
         store.update(r.path, { status: 'error', errorMsg: 'Engine crashed' });
       }
     }
-    alert('Image engine crashed. It will restart on the next drop.');
+    alert(i18n.t('alert.engineCrashed'));
   });
 }
 main();
