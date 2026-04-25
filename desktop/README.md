@@ -1,6 +1,6 @@
 # Hando desktop
 
-A Tauri 2.x desktop app that wraps the Hando encoder with a drag-and-drop UI, Recycle Bin-backed Undo, and WebP/AVIF companion emission.
+A Tauri 2.x desktop app that compresses images locally with native Rust encoders, drag-and-drop UX, and Recycle Bin-backed Undo.
 
 ## Features
 
@@ -10,23 +10,25 @@ A Tauri 2.x desktop app that wraps the Hando encoder with a drag-and-drop UI, Re
 - Optional WebP and AVIF companion output alongside each compressed original
 - Originals are moved to the Recycle Bin — Undo restores them (and removes companions)
 - Live progress bar and cumulative "saved bytes" summary in the status bar
-- Sidecar crash detection (`sidecar-crashed` event) with surfaced error state
 
 ## Architecture
 
-Three-tier process model:
+Single-process Tauri 2 app. Encoding runs in-process; no sidecar.
 
 ```
 WebView (vanilla TS + Vite)
     ↕ invoke / events (Tauri IPC)
-Rust host (tokio, serde_json, trash, uuid)
-    ↕ JSON-lines over stdin/stdout
-Node sidecar (src/sidecar.js — imports src/encoder.js)
+Rust host (tokio, in-process encoders, trash)
+    └─ encoder facade (encoder/mod.rs)
+        ├─ jpeg.rs (mozjpeg)
+        ├─ png.rs  (imagequant + oxipng)
+        ├─ webp.rs (libwebp via webp crate)
+        └─ avif.rs (ravif via rav1e)
 ```
 
-- **Rust host** (`src-tauri/src/`): `sidecar.rs` spawns the Node process and bridges JSON-lines ↔ tokio channels; `commands.rs` exposes `compress`, `undo_last_batch`, `open_trash`, and `confirm_close`; `batch.rs` tracks per-batch disposals for Undo; `trash.rs` wraps the `trash` crate with Windows `\\?\` prefix handling.
-- **Frontend** (`src/`): reactive `Store` in `state.ts`, typed IPC wrappers in `ipc.ts`, recursive folder expansion in `fs.ts`, and UI modules under `ui/` (dropzone, file list, toolbar, settings, status bar).
-- **Node sidecar** (`../src/sidecar.js`): reads JSON-lines encode jobs from stdin, runs the shared Sharp pipeline with a concurrency pool of 4, emits `done` / `error` / `skipped-no-gain` / `companion-error` events.
+- **Rust host** (`src-tauri/src/`): `commands.rs` exposes `compress`, `undo_last_batch`, `open_trash`, and `confirm_close`; `batch.rs` tracks per-batch disposals for Undo with an atomic completion counter that emits `batch-done` on the last file; `trash.rs` wraps the `trash` crate with Windows `\\?\` prefix handling.
+- **Encoder** (`src-tauri/src/encoder/`): `mod.rs` is the facade with shared types; `decode.rs` produces RGBA buffers (mozjpeg for JPEG; `image::ImageReader` for PNG/WebP/AVIF) and applies EXIF orientation up-front so encoders can strip it; per-format files implement encode. `event_sink.rs` defines the `EventSink` trait with a Tauri-emitting impl for production and a `MockSink` for tests.
+- **Frontend** (`src/`): reactive `Store` in `state.ts`, typed IPC wrappers in `ipc.ts`, recursive folder expansion in `fs.ts`, and UI modules under `ui/` (dropzone, file list, toolbar, settings, status bar). `main.ts` listens for `batch-done` to authoritatively unlock Undo.
 
 See the root [`CLAUDE.md`](../CLAUDE.md) for the full data-flow walkthrough and Windows-specific notes.
 
@@ -35,22 +37,23 @@ See the root [`CLAUDE.md`](../CLAUDE.md) for the full data-flow walkthrough and 
 ```bash
 npm install            # install frontend deps
 npm run tauri dev      # start the app in dev mode
+npm run tauri build    # release build
+npm run dist           # release build + rename + zip into dist-final/
 ```
 
-Rust-only rebuild:
+Rust-only rebuild + tests:
 
 ```bash
 cd src-tauri && cargo build
+cd src-tauri && cargo test
 ```
 
-### First-time setup (Windows)
+### First-time setup
 
-The Tauri bundler expects a Node binary at `src-tauri/binaries/node-x86_64-pc-windows-msvc.exe`. It is gitignored — download it once:
+Native Rust encoders need a C toolchain and NASM:
 
-```powershell
-# From the repo root
-powershell -c "Invoke-WebRequest https://nodejs.org/dist/v20.11.1/node-v20.11.1-win-x64.zip -OutFile $env:TEMP\node.zip; Expand-Archive $env:TEMP\node.zip $env:TEMP\node-dl -Force; Copy-Item $env:TEMP\node-dl\node-v20.11.1-win-x64\node.exe desktop\src-tauri\binaries\node-x86_64-pc-windows-msvc.exe"
-```
+- **Windows**: Visual Studio 2022 Build Tools (Desktop development with C++) + NASM (`winget install nasm`). Run cargo from the *"x64 Native Tools Command Prompt for VS 2022"* shell — `mozjpeg-sys` and `webp-sys` need MSVC's `cl.exe` and NASM in PATH.
+- **macOS**: Xcode Command Line Tools (`xcode-select --install`) + NASM (`brew install nasm`).
 
 ## Recommended IDE setup
 

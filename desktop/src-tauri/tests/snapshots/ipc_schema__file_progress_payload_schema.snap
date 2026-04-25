@@ -1,0 +1,9 @@
+---
+source: tests/ipc_schema.rs
+assertion_line: 55
+expression: p
+---
+{
+  "id": "abc-123",
+  "pct": 50
+}

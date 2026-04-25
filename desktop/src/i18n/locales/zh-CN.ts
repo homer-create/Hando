@@ -9,7 +9,7 @@ const messages: Messages = {
     clickToAdd: '点击添加',
     imagesFilter: '图片',
   },
-  fileList: { empty: '还没有文件。将图片拖入窗口。' },
+  fileList: { empty: '还没有文件。将图片拖入窗口。', skipped: '已优化，跳过' },
   statusbar: {
     progress: '{completed} / {total} 张 ({pct}%)',
     saved: '已节省 {amount}，共 {count} 个文件',

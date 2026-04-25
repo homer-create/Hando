@@ -5,65 +5,63 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-
 jobs:
-  build-windows-portable:
-    runs-on: windows-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-14'
+            args: '--target universal-apple-darwin'
+            label: 'mac'
+          - platform: 'windows-latest'
+            args: ''
+            label: 'win'
+
+    runs-on: ${{ matrix.platform }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-14' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: ${{ matrix.platform }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+
+      - name: Install NASM (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: choco install nasm -y
+
+      - name: Install NASM (macOS)
+        if: matrix.platform == 'macos-14'
+        run: brew install nasm
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.1'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            desktop/package-lock.json
+          node-version: 20
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri -> target
-
-      - name: Install root npm deps (Sharp + native binaries for portable bundle)
-        run: npm install
-
-      - name: Install desktop npm deps (frontend build)
+      - name: Install frontend deps
         working-directory: desktop
-        run: npm install
+        run: npm ci
 
-      - name: Fetch Node binary for sidecar
-        shell: pwsh
-        run: |
-          $tmp = "$env:RUNNER_TEMP\node.zip"
-          $extract = "$env:RUNNER_TEMP\node-dl"
-          Invoke-WebRequest https://nodejs.org/dist/v20.11.1/node-v20.11.1-win-x64.zip -OutFile $tmp
-          Expand-Archive $tmp $extract -Force
-          New-Item -ItemType Directory -Force -Path desktop\src-tauri\binaries | Out-Null
-          Copy-Item $extract\node-v20.11.1-win-x64\node.exe desktop\src-tauri\binaries\node-x86_64-pc-windows-msvc.exe
-
-      - name: Build portable bundle
-        shell: pwsh
-        working-directory: desktop
-        run: powershell -ExecutionPolicy Bypass -File scripts\make-portable.ps1
-
-      - name: Zip portable bundle
-        shell: pwsh
-        run: |
-          $version = "${{ github.ref_name }}"
-          Compress-Archive -Path desktop\Hando-portable\* -DestinationPath "Hando-portable-$version.zip"
-
-      - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Build app (Tauri)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: Hando-portable-*.zip
-          generate_release_notes: true
-          draft: false
+          projectPath: desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Hando ${{ github.ref_name }}'
+          releaseDraft: true
           prerelease: false
+          args: ${{ matrix.args }}

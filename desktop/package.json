@@ -8,8 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "pretauri": "bash ./scripts/fetch-node.sh && node scripts/copy-sidecar-deps.mjs",
-    "build:portable": "node scripts/build-portable.mjs"
+    "dist": "tauri build && node scripts/build-dist.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

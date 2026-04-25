@@ -36,18 +36,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/node"],
-    "resources": {
-      "../../src/sidecar.js": "src/sidecar.js",
-      "../../src/encoder.js": "src/encoder.js",
-      "../../src/config.js": "src/config.js",
-      "sidecar-deps/node_modules/sharp": "node_modules/sharp",
-      "sidecar-deps/node_modules/@img/colour": "node_modules/@img/colour",
-      "sidecar-deps/node_modules/@img/sharp-win32-x64": "node_modules/@img/sharp-win32-x64",
-      "sidecar-deps/node_modules/detect-libc": "node_modules/detect-libc",
-      "sidecar-deps/node_modules/semver": "node_modules/semver"
-    },
-    "windows": {
+"windows": {
       "nsis": {
         "installMode": "both",
         "headerImage": "assets/installer-header.bmp"

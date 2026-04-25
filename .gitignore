@@ -1,6 +1,9 @@
 node_modules/
 dist/
 fixtures/
+# Re-include test fixtures for the Rust encoder (large_photo.jpg stays excluded per src-tauri/.gitignore)
+!desktop/src-tauri/tests/fixtures/
+!desktop/src-tauri/tests/fixtures/**
 .superpowers/
 .DS_Store
 *.log
@@ -9,7 +12,4 @@ desktop/node_modules/
 desktop/src-tauri/target/
 desktop/dist/
 desktop/src-tauri/.cargo/
-desktop/src-tauri/binaries/node*
-desktop/src-tauri/sidecar-deps/
-desktop/Hando-portable/
-desktop/Hando-portable*.zip
+desktop/dist-final/

@@ -1,0 +1,8 @@
+---
+source: tests/ipc_schema.rs
+assertion_line: 49
+expression: p
+---
+{
+  "batchId": "batch-1"
+}

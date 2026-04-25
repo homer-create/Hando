@@ -7,6 +7,7 @@ export interface FileRow {
   path: string;
   name: string;
   status: FileStatus;
+  progress?: number;    // 0–100 while working, absent when done
   srcBytes?: number;
   outBytes?: number;
   errorMsg?: string;

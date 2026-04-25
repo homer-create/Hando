@@ -1,0 +1,10 @@
+---
+source: tests/ipc_schema.rs
+assertion_line: 34
+expression: p
+---
+{
+  "id": "abc-123",
+  "ext": "webp",
+  "msg": "ravif failed"
+}
