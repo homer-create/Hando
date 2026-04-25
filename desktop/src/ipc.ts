@@ -24,7 +24,6 @@ export async function compress(args: CompressArgs): Promise<void> {
   await invoke('compress', { args });
 }
 
-// Remove tmp from FileDonePayload — sidecar-era field, never consumed by frontend
 export interface FileDonePayload { id: string; srcBytes: number; outBytes: number; }
 export interface FileErrorPayload { id: string; msg: string; }
 export interface FileSkippedPayload { id: string; srcBytes: number; }
