@@ -9,7 +9,7 @@ const messages: Messages = {
     clickToAdd: 'clique para adicionar',
     imagesFilter: 'Imagens',
   },
-  fileList: { empty: 'Ainda sem arquivos. Arraste imagens para a janela.' },
+  fileList: { empty: 'Ainda sem arquivos. Arraste imagens para a janela.', skipped: 'Already optimized' },
   statusbar: {
     progress: '{completed} / {total} arquivos ({pct}%)',
     saved: '{amount} economizados em {count} arquivos',

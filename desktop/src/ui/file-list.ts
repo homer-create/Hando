@@ -19,6 +19,18 @@ function savings(row: FileRow): string {
   return `−${pct}%`;
 }
 
+function detail(row: FileRow): string {
+  if (row.status === 'error' && row.errorMsg)
+    return `<span class="row-detail row-detail--error">${escHtml(row.errorMsg)}</span>`;
+  if (row.status === 'skipped-no-gain')
+    return `<span class="row-detail row-detail--skipped">${t('fileList.skipped')}</span>`;
+  return '';
+}
+
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export function mountFileList(root: HTMLElement) {
   root.innerHTML = `<div class="file-list" id="file-list"></div>`;
   const list = root.querySelector('#file-list') as HTMLElement;
@@ -31,7 +43,7 @@ export function mountFileList(root: HTMLElement) {
     list.innerHTML = rows.map((r) => `
       <div class="row status-${r.status}" title="${r.path}">
         <span class="icon">${statusIcon(r)}</span>
-        <span class="name">${r.name}</span>
+        <span class="name">${r.name}${detail(r)}</span>
         <span class="size old">${r.srcBytes !== undefined ? fmtBytes(r.srcBytes) : ''}</span>
         <span class="size new">${r.outBytes !== undefined ? fmtBytes(r.outBytes) : ''}</span>
         <span class="savings">${savings(r)}</span>

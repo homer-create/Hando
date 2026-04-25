@@ -9,7 +9,7 @@ const messages: Messages = {
     clickToAdd: 'クリックで追加',
     imagesFilter: '画像',
   },
-  fileList: { empty: 'ファイルがありません。画像をウィンドウにドラッグしてください。' },
+  fileList: { empty: 'ファイルがありません。画像をウィンドウにドラッグしてください。', skipped: '最適化済み' },
   statusbar: {
     progress: '{completed} / {total} 件 ({pct}%)',
     saved: '{amount} を節約しました ({count} 件)',

@@ -9,7 +9,7 @@ const messages: Messages = {
     clickToAdd: '點擊新增',
     imagesFilter: '圖片',
   },
-  fileList: { empty: '還沒有檔案。將圖片拖入視窗。' },
+  fileList: { empty: '還沒有檔案。將圖片拖入視窗。', skipped: '已優化，略過' },
   statusbar: {
     progress: '{completed} / {total} 張 ({pct}%)',
     saved: '已節省 {amount}，共 {count} 個檔案',

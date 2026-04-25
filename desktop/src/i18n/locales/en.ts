@@ -4,7 +4,7 @@
 export interface Messages {
   toolbar: { settings: string; undo: string };
   dropzone: { prompt: string; clickToAdd: string; imagesFilter: string };
-  fileList: { empty: string };
+  fileList: { empty: string; skipped: string };
   statusbar: { progress: string; saved: string; trashHint: string; trashShow: string };
   settings: {
     title: string;
@@ -34,7 +34,7 @@ const messages: Messages = {
     clickToAdd: 'click to add',
     imagesFilter: 'Images',
   },
-  fileList: { empty: 'No files yet. Drag images onto the window.' },
+  fileList: { empty: 'No files yet. Drag images onto the window.', skipped: 'Already optimized' },
   statusbar: {
     progress: '{completed} / {total} files ({pct}%)',
     saved: 'Saved {amount} across {count} files',
