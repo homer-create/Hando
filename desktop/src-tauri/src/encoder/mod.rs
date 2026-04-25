@@ -65,23 +65,27 @@ pub struct EncodeRequest<'a> {
     pub opts: &'a EncodeOpts,
 }
 
+#[derive(Debug)]
 pub struct EncodeResult {
     pub main: EncodedFile,
     pub companions: Vec<EncodedFile>,
     pub companion_errors: Vec<CompanionError>,
 }
 
+#[derive(Debug)]
 pub struct EncodedFile {
     pub ext: ImageExt,
     pub tmp_path: PathBuf,
     pub bytes: u64,
 }
 
+#[derive(Debug)]
 pub struct CompanionError {
     pub ext: ImageExt,
     pub msg: String,
 }
 
+#[derive(Debug)]
 pub enum EncodeOutcome {
     Encoded(EncodeResult),
     SkippedNoGain { src_bytes: u64 },
