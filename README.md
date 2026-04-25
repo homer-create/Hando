@@ -48,6 +48,13 @@ Briefly:
 - In-process Rust encoders: `mozjpeg`, `oxipng`, `imagequant`, `webp`, `ravif`
 - No sidecars, no native runtime dependencies
 
+## Release process
+
+1. Bump version in `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json`.
+2. Commit and tag: `git tag v0.2.0 && git push origin v0.2.0`.
+3. GitHub Actions builds Windows + macOS-universal artifacts and creates a draft release.
+4. Edit the draft release notes, then publish.
+
 ## License
 
 Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
