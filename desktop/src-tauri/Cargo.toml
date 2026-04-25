@@ -36,7 +36,7 @@ dirs-next = "2"
 tauri-plugin-dialog = "2"
 
 # Image processing — Rust-native encoders
-image = { version = "0.25", default-features = false, features = ["png", "webp", "avif"] }
+image = { version = "0.25", default-features = false, features = ["png", "webp", "avif", "jpeg"] }
 mozjpeg = "0.10"
 oxipng = { version = "10", default-features = false, features = ["parallel"] }
 imagequant = "4"

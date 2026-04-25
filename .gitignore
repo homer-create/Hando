@@ -1,6 +1,9 @@
 node_modules/
 dist/
 fixtures/
+# Re-include test fixtures for the Rust encoder (large_photo.jpg stays excluded per src-tauri/.gitignore)
+!desktop/src-tauri/tests/fixtures/
+!desktop/src-tauri/tests/fixtures/**
 .superpowers/
 .DS_Store
 *.log
