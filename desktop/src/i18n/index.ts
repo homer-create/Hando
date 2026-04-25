@@ -46,6 +46,7 @@ function resolve(setting: LanguageSetting): LocaleCode {
   return resolveAuto(navigator.language || 'en');
 }
 
+/** Call once at application boot. Does not fire onLocaleChange listeners. */
 export function init(setting: LanguageSetting): void {
   currentLocale = resolve(setting);
   currentMessages = LOCALES[currentLocale];
@@ -85,8 +86,18 @@ export function t(key: MessageKey, vars?: Record<string, string | number>): stri
   });
 }
 
+let cachedFmtLocale: LocaleCode | undefined;
+let cachedFmt: Intl.NumberFormat;
+function getNumFmt(): Intl.NumberFormat {
+  if (cachedFmtLocale !== currentLocale) {
+    cachedFmtLocale = currentLocale;
+    cachedFmt = new Intl.NumberFormat(currentLocale, { maximumFractionDigits: 1 });
+  }
+  return cachedFmt;
+}
+
 export function fmtBytes(n: number): string {
-  const fmt = new Intl.NumberFormat(currentLocale, { maximumFractionDigits: 1 });
+  const fmt = getNumFmt();
   if (n < 1024) return `${fmt.format(n)} B`;
   if (n < 1024 * 1024) return `${fmt.format(n / 1024)} KB`;
   return `${fmt.format(n / 1024 / 1024)} MB`;
