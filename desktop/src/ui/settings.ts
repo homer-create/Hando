@@ -117,7 +117,7 @@ export function openSettingsPanel() {
   bindRange('avif', 'avifQuality');
   (overlay.querySelector('#emitWebp') as HTMLInputElement).onchange = (e) => { current.emitWebp = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#emitAvif') as HTMLInputElement).onchange = (e) => { current.emitAvif = (e.target as HTMLInputElement).checked; saveSettings(current); };
-  (overlay.querySelector('#trash' ) as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; saveSettings(current); };
+  (overlay.querySelector('#trash') as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#done') as HTMLButtonElement).onclick = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 }
