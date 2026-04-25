@@ -69,6 +69,12 @@ pub fn restore_all(disposals: &[Disposal]) -> Result<usize> {
         .filter_map(|d| matches!(d.kind, DisposalKind::Trashed).then_some(&d.original_path))
         .collect();
     if !trashed_targets.is_empty() {
+        // os_limited (list + restore) is only available on Windows and non-macOS Unix.
+        // macOS doesn't expose a programmatic restore API; trashed files stay in Trash.
+        #[cfg(any(
+            target_os = "windows",
+            all(unix, not(target_os = "macos"), not(target_os = "ios"), not(target_os = "android"))
+        ))]
         match trash::os_limited::list() {
             Ok(items) => {
                 for want in &trashed_targets {

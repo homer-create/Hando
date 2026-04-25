@@ -10,6 +10,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 > Pending: tag-push smoke test, macOS CI validation, clean-machine install test.
 > See [docs/release-checklist.md](docs/release-checklist.md).
 
+### Fixed
+- **macOS build** — `trash::os_limited` (list + restore) is gated to Windows/Linux in `trash` 5.x; wrapped the undo restore path in `#[cfg(...)]` so macOS compiles cleanly (trashed files remain in Trash on macOS, as the crate exposes no programmatic restore API there)
+- **CI release creation** — added `permissions: contents: write` to `release.yml`; without it `GITHUB_TOKEN` couldn't create the draft release
+
 ### Changed
 - **AVIF encoding speed** — `ravif` speed raised from 6 → 8 and per-encode thread count changed from a fixed 1–2 to `num_cpus / 2` clamped to [2, 4]; typical encode time drops ~3-4x with negligible quality difference
 - **Replaced Node sidecar with Rust-native encoder** — encoding pipeline now runs entirely in-process via Rust crates; eliminates the bundled Node binary and JSON-lines sidecar protocol
