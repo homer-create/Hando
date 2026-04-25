@@ -1,92 +1,52 @@
 # Hando
 
-Recursively compress images with [Sharp](https://sharp.pixelplumbing.com). Ships as both a CLI and a Tauri desktop app.
-
-- **CLI** — batch-compress a directory tree, emit `.webp` companions for `<picture>` fallback, and skip unchanged files on re-runs.
-- **Desktop app** — drag-and-drop compression with Recycle Bin-backed Undo, optional WebP/AVIF companion output, and per-format quality settings. See [`desktop/`](./desktop).
+A single-file desktop image optimizer for Windows and macOS. Drag images in, get smaller files out. No installer, no Node runtime, no companion folders.
 
 ## Demo
 
 <!-- TODO: replace with a real screenshot / GIF once recorded -->
 ![Hando desktop demo](docs/demo.gif)
 
-## CLI
+## Download
 
-### Install
+Pre-built binaries are published in [Releases](../../releases). Single executable; double-click to launch.
 
-```bash
-git clone <this-repo>
-cd Hando
-npm install
-npm link          # exposes the `hando` command globally
-```
+| Platform | File |
+|---|---|
+| Windows x64 | `Hando-win-x64-v*.exe` |
+| macOS Universal | `Hando-mac-universal-v*.app.zip` |
 
-### Usage
+## Build from source
 
-```bash
-hando <input-dir> -o <output-dir>
-```
+### Prerequisites
 
-Example:
+- **Rust** stable, ≥ 1.85.1
+- **Node.js** 20+ (only for the desktop frontend dev server — not bundled into the app)
+- Platform toolchain:
+  - **Windows**: Visual Studio 2022 Build Tools (Desktop development with C++) + **NASM** (`winget install nasm`)
+    - **Important**: Run `cargo` commands from the *"x64 Native Tools Command Prompt for VS 2022"* shell, or first invoke `vcvarsall.bat x64`. Otherwise `mozjpeg-sys` and `webp-sys` linker steps will fail with cryptic errors.
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`) + **NASM** (`brew install nasm`)
 
-```bash
-hando ./src/images -o ./dist/images
-```
-
-For each `.jpg` / `.jpeg` / `.png` in `<input-dir>`, two files are written:
-
-- The compressed original format (`photo.jpg` → `dist/photo.jpg`)
-- A WebP version (`photo.jpg` → `dist/photo.webp`)
-
-Input `.webp` files emit a single compressed `.webp`.
-
-Subfolders are recursed and the structure is preserved.
-
-### Incremental builds
-
-On re-runs, each output is compared to its source by mtime. Outputs that are at least as new as the source are skipped. Touching a source file forces re-encoding on the next run.
-
-### Configuration
-
-Compression defaults live in [`src/config.js`](./src/config.js):
-
-```js
-export const CONFIG = {
-  JPEG_QUALITY: 75,
-  PNG_QUALITY: 75,
-  WEBP_QUALITY: 75,
-  AVIF_QUALITY: 50,
-  EXTENSIONS: ['.jpg', '.jpeg', '.png', '.webp'],
-  CONCURRENCY: 4,
-};
-```
-
-Edit and re-run. (The CLI writes original-format + WebP today; AVIF is exposed through the desktop app.)
-
-### Tests
+### Commands
 
 ```bash
-node --test src/*.test.js
+cd desktop && npm install        # frontend deps
+cd desktop && npm run tauri dev  # dev mode (Vite + Tauri)
+cd desktop && npm run tauri build  # release build
+cd desktop && npm run dist         # release build + rename + zip
 ```
 
-## Desktop app
+Outputs land in `desktop/dist-final/`.
 
-A Tauri 2.x app that wraps the same encoder pipeline with a drag-and-drop UI, Recycle Bin-backed Undo, and WebP/AVIF companion emission. See [`desktop/README.md`](./desktop/README.md) for setup and architecture.
+## Architecture
 
-## Project layout
+See [`docs/superpowers/specs/2026-04-25-rust-native-encoder-design.md`](docs/superpowers/specs/2026-04-25-rust-native-encoder-design.md) for the full design.
 
-```
-index.js                     CLI entry point
-src/
-  config.js                  shared quality defaults
-  encoder.js                 Sharp pipeline per extension
-  sidecar.js                 JSON-lines worker used by the desktop app
-  *.test.js                  node:test unit tests
-desktop/
-  src/                       Vite + TS frontend
-  src-tauri/                 Rust host (tokio, trash, IPC)
-docs/superpowers/            specs and implementation plans
-```
+Briefly:
+- WebView (TypeScript + Vite) for UI
+- Tauri 2 (Rust) host
+- In-process Rust encoders: `mozjpeg`, `oxipng`, `imagequant`, `webp`, `ravif`
+- No sidecars, no native runtime dependencies
 
 ## License
 
@@ -98,9 +58,12 @@ AGPL's network clause means anyone who runs a modified version as a network serv
 
 ### Third-party components
 
-- [sharp](https://github.com/lovell/sharp) — Apache-2.0
-- [libvips](https://github.com/libvips/libvips) — LGPL-2.1+
+- [mozjpeg](https://github.com/mozilla/mozjpeg) — IJG (BSD-style)
+- [oxipng](https://github.com/shssoichiro/oxipng) — MIT
+- [imagequant](https://github.com/ImageOptim/libimagequant) — GPL-3.0 / commercial dual-licensed
+- [libwebp](https://chromium.googlesource.com/webm/libwebp) — BSD-3-Clause
+- [ravif / rav1e](https://github.com/xiph/rav1e) — BSD-2-Clause
 - [Tauri](https://tauri.app) — MIT / Apache-2.0
 - [trash (Rust crate)](https://crates.io/crates/trash) — MIT
 
-All are compatible with AGPL-3.0 as downstream dependencies.
+`imagequant` is GPL-3.0; combining it with our AGPL-3.0-or-later codebase is permitted because AGPL-3.0 is a strict superset of GPL-3.0's obligations. The other dependencies' permissive licenses are AGPL-compatible as downstream components.
