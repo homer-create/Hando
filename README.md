@@ -2,10 +2,20 @@
 
 A single-file desktop image optimizer for Windows and macOS. Drag images in, get smaller files out. No installer, no Node runtime, no companion folders.
 
+**Language:** English UI
+
+## Features
+
+- **Drag-and-drop** — drop images onto the window or click to browse
+- **JPEG, PNG, WebP, AVIF** — all four formats supported for both input and output
+- **Lossless-aware** — skips encoding if the result would be larger than the original
+- **Undo** — one-click restore; originals are moved to Trash, not deleted
+- **Optional companion output** — export WebP or AVIF alongside the original format
+- **Portable** — single executable, no installation required
+
 ## Demo
 
-<!-- TODO: replace with a real screenshot / GIF once recorded -->
-![Hando desktop demo](docs/demo.gif)
+![Hando desktop screenshot](docs/demo.png)
 
 ## Download
 
@@ -57,7 +67,7 @@ Briefly:
 
 ## License
 
-Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
+Copyright (C) 2026 謝昇運 (homershie) <homerxworkshop@gmail.com>
 
 This program is free software: you can redistribute it and/or modify it under the terms of the **GNU Affero General Public License v3.0 or later** (AGPL-3.0-or-later) as published by the Free Software Foundation. See [`LICENSE`](./LICENSE) for the full text.
 
