@@ -12,6 +12,7 @@ import { expandPaths } from './fs';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import * as i18n from './i18n';
+import { initTheme } from './ui/theme';
 
 function extOf(p: string): string {
   const idx = p.lastIndexOf('.');
@@ -21,6 +22,7 @@ function extOf(p: string): string {
 async function main() {
   await loadSettings();
   i18n.init(getSettings().language);
+  initTheme();
 
   onFileDone((p) => {
     const row = store.snapshotById(p.id);

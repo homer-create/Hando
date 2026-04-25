@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { Store } from '@tauri-apps/plugin-store';
 import { setLocale, t, type LanguageSetting } from '../i18n';
+import { setThemePref, type ThemePref } from './theme';
 
 export interface Settings {
   jpegQuality: number;
@@ -13,6 +14,7 @@ export interface Settings {
   moveOriginalsToTrash: boolean;
   concurrency: number;
   language: LanguageSetting;
+  theme: ThemePref;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -25,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   moveOriginalsToTrash: true,
   concurrency: 4,
   language: 'auto',
+  theme: 'auto',
 };
 
 const SETTINGS_FILE = 'settings.json';
@@ -69,6 +72,12 @@ export function openSettingsPanel() {
   overlay.innerHTML = `
     <div class="settings-panel">
       <h2>${t('settings.title')}</h2>
+      <label>${t('settings.theme')}</label>
+      <div class="theme-seg" id="theme-seg">
+        <button class="seg-btn${current.theme === 'auto' ? ' active' : ''}" data-value="auto">${t('settings.themeAuto')}</button>
+        <button class="seg-btn${current.theme === 'light' ? ' active' : ''}" data-value="light">${t('settings.themeLight')}</button>
+        <button class="seg-btn${current.theme === 'dark' ? ' active' : ''}" data-value="dark">${t('settings.themeDark')}</button>
+      </div>
       <label>${t('settings.language')}</label>
       <select id="lang">
         <option value="auto"${current.language === 'auto' ? ' selected' : ''}>${t('settings.languageAuto')}</option>
@@ -120,4 +129,11 @@ export function openSettingsPanel() {
   (overlay.querySelector('#trash') as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#done') as HTMLButtonElement).onclick = () => overlay.remove();
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  (overlay.querySelector('#theme-seg') as HTMLElement).addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('[data-value]') as HTMLElement | null;
+    if (!btn) return;
+    const pref = btn.dataset.value as ThemePref;
+    setThemePref(pref);
+    overlay.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
+  });
 }
