@@ -4,7 +4,6 @@
 pub mod batch;
 mod commands;
 pub mod encoder;
-mod sidecar; // still present; deleted in Phase 3
 mod trash;
 
 use batch::BatchState;
