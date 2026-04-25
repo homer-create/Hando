@@ -139,6 +139,8 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::{decode, webp};
+    use std::path::PathBuf;
 
     #[test]
     fn parses_known_extensions() {
@@ -155,5 +157,118 @@ mod tests {
             ImageExt::from_str("gif"),
             Err(EncodeError::UnsupportedFormat(_))
         ));
+    }
+
+    fn fixture(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
+    }
+
+    fn opts_no_companions() -> EncodeOpts {
+        EncodeOpts {
+            jpeg_quality: 80,
+            png_quality: 80,
+            webp_quality: 80,
+            avif_quality: 60,
+            emit_webp: false,
+            emit_avif: false,
+        }
+    }
+
+    #[allow(dead_code)]
+    fn opts_with_companions() -> EncodeOpts {
+        EncodeOpts {
+            jpeg_quality: 80,
+            png_quality: 80,
+            webp_quality: 80,
+            avif_quality: 60,
+            emit_webp: true,
+            emit_avif: true,
+        }
+    }
+
+    #[test]
+    fn encode_jpeg_returns_encoded_result() {
+        let o = opts_no_companions();
+        let outcome = encode(EncodeRequest {
+            src_path: &fixture("landscape.jpg"),
+            ext: ImageExt::Jpeg,
+            opts: &o,
+        }).unwrap();
+        match outcome {
+            EncodeOutcome::Encoded(r) => {
+                assert_eq!(r.main.ext, ImageExt::Jpeg);
+                assert!(r.companions.is_empty());
+                assert!(r.companion_errors.is_empty());
+            }
+            EncodeOutcome::SkippedNoGain { .. } => panic!("should encode, not skip"),
+        }
+    }
+
+    #[test]
+    fn encode_with_webp_companion_produces_one_companion() {
+        let o = EncodeOpts {
+            emit_webp: true,
+            emit_avif: false,
+            ..opts_no_companions()
+        };
+        let outcome = encode(EncodeRequest {
+            src_path: &fixture("landscape.jpg"),
+            ext: ImageExt::Jpeg,
+            opts: &o,
+        }).unwrap();
+        if let EncodeOutcome::Encoded(r) = outcome {
+            assert_eq!(r.companions.len(), 1);
+            assert_eq!(r.companions[0].ext, ImageExt::Webp);
+        } else {
+            panic!("expected Encoded");
+        }
+    }
+
+    #[test]
+    fn encode_tiny_already_optimized_skips() {
+        let o = opts_no_companions();
+        let outcome = encode(EncodeRequest {
+            src_path: &fixture("tiny.png"),
+            ext: ImageExt::Png,
+            opts: &o,
+        }).unwrap();
+        assert!(matches!(outcome, EncodeOutcome::SkippedNoGain { .. }));
+    }
+
+    #[test]
+    fn encode_corrupt_returns_decode_error() {
+        let o = opts_no_companions();
+        let result = encode(EncodeRequest {
+            src_path: &fixture("corrupt.jpg"),
+            ext: ImageExt::Jpeg,
+            opts: &o,
+        });
+        assert!(matches!(result, Err(EncodeError::Decode(_))));
+    }
+
+    #[test]
+    fn webp_source_does_not_emit_webp_companion() {
+        // Encode landscape.jpg → WebP first, then re-encode that WebP with emit_webp=true
+        // The companion should NOT be emitted (no duplicate-format companions)
+        let decoded = decode::decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
+        let webp_encoded = webp::encode(&decoded, 80).unwrap();
+
+        let o = EncodeOpts { emit_webp: true, ..opts_no_companions() };
+        let outcome = encode(EncodeRequest {
+            src_path: &webp_encoded.tmp_path,
+            ext: ImageExt::Webp,
+            opts: &o,
+        });
+
+        // Clean up temp file
+        let _ = std::fs::remove_file(&webp_encoded.tmp_path);
+
+        let outcome = outcome.unwrap();
+        if let EncodeOutcome::Encoded(r) = outcome {
+            assert_eq!(r.companions.len(), 0, "WebP source should not emit WebP companion");
+        }
+        // SkippedNoGain is also acceptable (if re-compressing WebP doesn't save bytes)
     }
 }

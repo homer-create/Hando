@@ -64,10 +64,52 @@ fn gen_transparent(dir: &PathBuf) {
 }
 
 fn gen_tiny(dir: &PathBuf) {
-    // Solid gray 128x128 — already near-optimal after first PNG encode
-    let buf = vec![128u8; 128 * 128 * 3];
-    image::save_buffer(dir.join("tiny.png"), &buf, 128, 128, image::ColorType::Rgb8)
-        .expect("tiny.png");
+    // Solid gray 128x128 — run through imagequant + oxipng so it's already at the
+    // floor our encoder can achieve (SkippedNoGain on re-encode).
+    let (w, h) = (128u32, 128u32);
+    let rgba: Vec<u8> = vec![128u8, 128u8, 128u8, 255u8].into_iter()
+        .cycle()
+        .take((w * h * 4) as usize)
+        .collect();
+
+    // Palette-quantize via imagequant (same as our PNG encoder)
+    let mut attr = imagequant::Attributes::new();
+    attr.set_quality(0, 80).expect("imagequant quality");
+    let pixels: Vec<imagequant::RGBA> = rgba.chunks_exact(4)
+        .map(|p| imagequant::RGBA::new(p[0], p[1], p[2], p[3]))
+        .collect();
+    let mut img = attr.new_image(pixels.as_slice(), w as usize, h as usize, 0.0)
+        .expect("imagequant new_image");
+    let mut res = attr.quantize(&mut img).expect("imagequant quantize");
+    res.set_dithering_level(1.0).ok();
+    let (palette, indices) = res.remapped(&mut img).expect("imagequant remap");
+
+    // Reconstruct RGBA from palette
+    let mut out_rgba: Vec<u8> = Vec::with_capacity((w * h * 4) as usize);
+    for &i in &indices {
+        let c = palette[i as usize];
+        out_rgba.extend_from_slice(&[c.r, c.g, c.b, c.a]);
+    }
+
+    // Encode to PNG
+    let mut png_bytes = Vec::new();
+    {
+        use image::ImageEncoder;
+        let encoder = image::codecs::png::PngEncoder::new_with_quality(
+            &mut png_bytes,
+            image::codecs::png::CompressionType::Best,
+            image::codecs::png::FilterType::Adaptive,
+        );
+        encoder.write_image(&out_rgba, w, h, image::ExtendedColorType::Rgba8)
+            .expect("png encode");
+    }
+
+    // Optimize with oxipng
+    let opts = oxipng::Options::from_preset(2);
+    let optimized = oxipng::optimize_from_memory(&png_bytes, &opts)
+        .expect("oxipng optimize");
+
+    fs::write(dir.join("tiny.png"), &optimized).expect("tiny.png");
     eprintln!("  tiny.png");
 }
 
