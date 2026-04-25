@@ -1,20 +1,33 @@
 :root {
-  --bg: #ffffff;
-  --bg-elevated: #f6f6f6;
-  --text: #222;
-  --text-secondary: #888;
-  --border: #e5e5e5;
-  --accent: #3b82f6;
-  --good: #22c55e;
-  --warn: #f59e0b;
-  --err: #ef4444;
+  --bg:             #ffffff;
+  --bg-elevated:    #f5f5f5;
+  --text:           #0a0a0a;
+  --text-secondary: #71717a;
+  --border:         #e5e5e5;
+  --accent:         #5e00ff;
+  --accent-soft:    rgba(94, 0, 255, .08);
+  --good:           #7ac404;
+  --warn:           #f59e0b;
+  --err:            #ff2e9b;
+}
+:root[data-theme="dark"] {
+  --bg:             #09090b;
+  --bg-elevated:    #18181b;
+  --text:           #fafafa;
+  --text-secondary: #a1a1aa;
+  --border:         #27272a;
+  --accent:         #6a38ff;
+  --accent-soft:    rgba(106, 56, 255, .18);
+  --good:           #ceff04;
+  --warn:           #fbbf24;
+  --err:            #ff2e9b;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: -apple-system, system-ui, sans-serif; color: var(--text); background: var(--bg); }
 #app { display: flex; flex-direction: column; height: 100vh; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
 .toolbar .title { font-weight: 600; }
-.toolbar .btn { margin-left: 6px; padding: 4px 10px; background: transparent; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px; }
+.toolbar .btn { margin-left: 6px; padding: 4px 10px; background: transparent; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px; color: var(--text); }
 .toolbar .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 #dropzone { padding: 10px 14px; }
 .dropzone { border: 1.5px dashed var(--border); border-radius: 6px; padding: 16px; text-align: center; color: var(--text-secondary); font-size: 13px; }
@@ -23,23 +36,28 @@ body { margin: 0; font-family: -apple-system, system-ui, sans-serif; color: var(
 #list { flex: 1; overflow-y: auto; padding: 4px 14px 12px; }
 .file-list .row { display: grid; grid-template-columns: 20px 1fr 80px 80px 60px; gap: 10px; padding: 8px 10px; border-radius: 4px; font-size: 13px; align-items: center; }
 .file-list .row + .row { margin-top: 4px; }
-.file-list .row.status-working { background: rgba(59, 130, 246, 0.08); }
+.file-list .row.status-working { background: var(--accent-soft); }
 .file-list .row.status-done .savings { color: var(--good); font-weight: 600; }
 .file-list .row.status-error .icon { color: var(--err); }
 .file-list .size.old { color: var(--text-secondary); text-decoration: line-through; }
 .file-list .size.new { color: var(--good); }
 .file-list .empty { text-align: center; color: var(--text-secondary); padding: 30px; font-size: 13px; }
-#statusbar { padding: 8px 14px; border-top: 1px solid var(--border); background: var(--bg-elevated); font-size: 12px; color: var(--text-secondary); }
-#statusbar { display: flex; justify-content: space-between; align-items: center; }
+#statusbar { padding: 8px 14px; border-top: 1px solid var(--border); background: var(--bg-elevated); font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; }
 #statusbar .link { color: var(--accent); text-decoration: underline; cursor: pointer; }
 #statusbar .good { color: var(--good); }
 .progress-wrap { display: inline-block; width: 120px; height: 6px; background: var(--border); border-radius: 3px; vertical-align: middle; overflow: hidden; margin-right: 8px; }
 .progress-bar { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.2s ease; }
 .progress-label { vertical-align: middle; }
-#settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.settings-panel { background: var(--bg); border-radius: 8px; padding: 20px 24px; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.15); }
-.settings-panel h2 { margin: 0 0 14px; font-size: 16px; }
+#settings-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.settings-panel { background: var(--bg); border-radius: 8px; padding: 20px 24px; width: 360px; box-shadow: 0 10px 40px rgba(0,0,0,0.3); border: 1px solid var(--border); }
+.settings-panel h2 { margin: 0 0 14px; font-size: 16px; color: var(--text); }
 .settings-panel label { display: block; margin-top: 12px; font-size: 13px; color: var(--text); }
-.settings-panel input[type="range"] { width: 100%; margin-top: 4px; }
-.settings-panel input[type="checkbox"] { margin-right: 6px; }
+.settings-panel input[type="range"] { width: 100%; margin-top: 4px; accent-color: var(--accent); }
+.settings-panel input[type="checkbox"] { margin-right: 6px; accent-color: var(--accent); }
+.settings-panel select { width: 100%; margin-top: 4px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-elevated); color: var(--text); font-size: 13px; }
 .settings-actions { margin-top: 16px; text-align: right; }
+.settings-actions .btn { padding: 5px 14px; background: var(--accent); color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.theme-seg { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-top: 6px; }
+.seg-btn { flex: 1; padding: 5px 8px; background: transparent; border: none; border-right: 1px solid var(--border); cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+.seg-btn:last-child { border-right: none; }
+.seg-btn.active { background: var(--accent); color: #fff; font-weight: 600; }

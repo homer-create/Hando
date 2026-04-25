@@ -13,10 +13,18 @@ function applyResolved(pref: ThemePref): void {
     mediaListener = null;
   }
   const dark = pref === 'dark' || (pref === 'auto' && mq.matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  if (dark) {
+    document.documentElement.dataset.theme = 'dark';
+  } else {
+    delete document.documentElement.dataset.theme;
+  }
   if (pref === 'auto') {
     mediaListener = (e) => {
-      document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
+      if (e.matches) {
+        document.documentElement.dataset.theme = 'dark';
+      } else {
+        delete document.documentElement.dataset.theme;
+      }
     };
     mq.addEventListener('change', mediaListener);
   }
