@@ -9,7 +9,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 - **README** — Features section, language note, static demo screenshot; copyright year corrected to 2026
-- **CI portable artifacts** — `release.yml` now runs `build-dist.mjs` after Tauri build to upload renamed portable `.exe` / `.app.zip` alongside the default installer artifacts; `build-dist.mjs` gains `TARGET` env support for macOS universal path
+- **CI portable artifacts** — `release.yml` now runs `build-dist.mjs` after Tauri build to upload renamed portable `.exe` / `.app.zip` alongside the default installer artifacts; `build-dist.mjs` gains `TARGET` env support for macOS universal path; Windows skips zip and uploads `.exe` directly
 
 ### Fixed
 - **macOS CI bundle** — `generate-fixtures` moved from `[[bin]]` to `[[example]]`; Tauri bundles all `[[bin]]` entries but skips examples, so the bundler no longer tries to copy the uncompiled dev utility and fails with "does not exist"

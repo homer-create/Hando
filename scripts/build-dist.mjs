@@ -48,11 +48,13 @@ async function main() {
   await copyFile(srcBinary, dstPath);
   console.log(`Renamed: ${dstPath}`);
 
-  // Zip — use system 'zip' on macOS/linux, PowerShell Compress-Archive on Windows.
-  const zipName = `${niceName}.zip`;
-  const zipPath = join(distDir, zipName);
-  await zipFile(dstPath, zipPath);
-  console.log(`Zipped:  ${zipPath}`);
+  // macOS .app is a directory bundle — must zip. Windows .exe uploads directly.
+  if (plat !== 'win32') {
+    const zipName = `${niceName}.zip`;
+    const zipPath = join(distDir, zipName);
+    await zipFile(dstPath, zipPath);
+    console.log(`Zipped:  ${zipPath}`);
+  }
 }
 
 function zipFile(src, dst) {
