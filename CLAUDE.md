@@ -61,6 +61,14 @@ Rust host (tokio, in-process encoders, trash)
 - Cross-drive `fs::rename` fails (e.g. `C:\Temp` → `D:\files`); `commands.rs` falls back to `fs::copy` + `remove_file`
 - mozjpeg-sys requires MSVC + NASM (see Windows toolchain note above)
 
+## Changelog rule
+
+**Every code change must be recorded in `CHANGELOG.md` before the task is considered done.**
+
+- Add entries under the correct `[Unreleased]` section (`### Added`, `### Changed`, `### Fixed`, or `### Removed`).
+- One line per logical change; lead with **what** changed and include the **why / impact** (e.g. "~3x faster", "fixes crash on …").
+- Do not batch multiple unrelated changes into one entry.
+
 ## Docs
 
 Design specs and implementation plans live in `docs/superpowers/`:
