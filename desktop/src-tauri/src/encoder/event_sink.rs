@@ -89,6 +89,39 @@ impl EventSink for MockSink {
     fn emit_batch_done(&self, p: BatchDonePayload) { self.push(MockEvent::BatchDone(p)); }
 }
 
+// ---- Production sink (Tauri-specific) ----
+
+use tauri::{AppHandle, Emitter};
+
+pub struct TauriEmitter {
+    app: AppHandle,
+}
+
+impl TauriEmitter {
+    pub fn new(app: AppHandle) -> Self { Self { app } }
+}
+
+impl EventSink for TauriEmitter {
+    fn emit_file_done(&self, p: FileDonePayload) {
+        let _ = self.app.emit("file-done", p);
+    }
+    fn emit_file_error(&self, p: FileErrorPayload) {
+        let _ = self.app.emit("file-error", p);
+    }
+    fn emit_file_skipped(&self, p: FileSkippedPayload) {
+        let _ = self.app.emit("file-skipped", p);
+    }
+    fn emit_companion_error(&self, p: CompanionErrorPayload) {
+        let _ = self.app.emit("companion-error", p);
+    }
+    fn emit_trash_fallback(&self, p: TrashFallbackPayload) {
+        let _ = self.app.emit("trash-fallback", p);
+    }
+    fn emit_batch_done(&self, p: BatchDonePayload) {
+        let _ = self.app.emit("batch-done", p);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
