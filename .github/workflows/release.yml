@@ -34,8 +34,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            desktop/src-tauri/target
-          key: ${{ matrix.platform }}-cargo-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+            src-tauri/target
+          key: ${{ matrix.platform }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
 
       - name: Install NASM (Windows)
         if: matrix.platform == 'windows-latest'
@@ -51,7 +51,6 @@ jobs:
           node-version: 20
 
       - name: Install frontend deps
-        working-directory: desktop
         run: npm ci
 
       - name: Build app (Tauri)
@@ -59,7 +58,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          projectPath: desktop
           tagName: ${{ github.ref_name }}
           releaseName: 'Hando ${{ github.ref_name }}'
           releaseDraft: true

@@ -7,7 +7,7 @@
 // 2. Renames to `Hando-{platform}-{arch}-v{version}.{ext}`
 // 3. Zips for portable distribution
 //
-// Usage: node desktop/scripts/build-dist.mjs
+// Usage: node scripts/build-dist.mjs
 
 import { readFile, copyFile, mkdir, stat } from 'node:fs/promises';
 import { spawn } from 'node:child_process';

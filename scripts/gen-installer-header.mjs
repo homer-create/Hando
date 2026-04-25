@@ -1,4 +1,4 @@
-// Generates desktop/src-tauri/assets/installer-header.png (150×57)
+// Generates src-tauri/assets/installer-header.png (150×57)
 // Run from repo root: node scripts/gen-installer-header.mjs
 import sharp from 'sharp';
 
@@ -23,6 +23,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="150" height="57">
 
 await sharp(Buffer.from(svg))
   .png()
-  .toFile('desktop/src-tauri/assets/installer-header.png');
+  .toFile('src-tauri/assets/installer-header.png');
 
-console.log('Generated desktop/src-tauri/assets/installer-header.png (150×57)');
+console.log('Generated src-tauri/assets/installer-header.png (150×57)');

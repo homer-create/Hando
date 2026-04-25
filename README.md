@@ -30,13 +30,13 @@ Pre-built binaries are published in [Releases](../../releases). Single executabl
 ### Commands
 
 ```bash
-cd desktop && npm install        # frontend deps
-cd desktop && npm run tauri dev  # dev mode (Vite + Tauri)
-cd desktop && npm run tauri build  # release build
-cd desktop && npm run dist         # release build + rename + zip
+npm install              # frontend deps
+npm run tauri dev        # dev mode (Vite + Tauri)
+npm run tauri build      # release build
+npm run dist             # release build + rename + zip
 ```
 
-Outputs land in `desktop/dist-final/`.
+Outputs land in `dist-final/`.
 
 ## Architecture
 
@@ -50,7 +50,7 @@ Briefly:
 
 ## Release process
 
-1. Bump version in `desktop/src-tauri/Cargo.toml` and `desktop/src-tauri/tauri.conf.json`.
+1. Bump version in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
 2. Commit and tag: `git tag v0.2.0 && git push origin v0.2.0`.
 3. GitHub Actions builds Windows + macOS-universal artifacts and creates a draft release.
 4. Edit the draft release notes, then publish.
