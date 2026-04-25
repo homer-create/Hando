@@ -139,6 +139,8 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
             Ok(f)  => companions.push(f),
             Err(e) => companion_errors.push(CompanionError { ext: ImageExt::Webp, msg: e.to_string() }),
         }
+        // WebP is fast; emit a checkpoint so users see movement before the slow AVIF step
+        progress(78);
     }
     if req.opts.emit_avif && req.ext != ImageExt::Avif {
         match avif::encode(&decoded, req.opts.avif_quality) {
