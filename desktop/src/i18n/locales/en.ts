@@ -18,6 +18,10 @@ export interface Messages {
     emitAvif: string;
     moveToTrash: string;
     done: string;
+    theme: string;
+    themeAuto: string;
+    themeLight: string;
+    themeDark: string;
   };
   confirm: { quitProcessing: string };
   alert: { engineCrashed: string };
@@ -49,6 +53,10 @@ const messages: Messages = {
     emitAvif: 'Also emit AVIF alongside',
     moveToTrash: 'Move originals to Trash',
     done: 'Done',
+    theme: 'Theme',
+    themeAuto: 'Auto',
+    themeLight: 'Light',
+    themeDark: 'Dark',
   },
   confirm: { quitProcessing: '{count} files still processing. Quit anyway?' },
   alert: { engineCrashed: 'Image engine crashed. It will restart on the next drop.' },
