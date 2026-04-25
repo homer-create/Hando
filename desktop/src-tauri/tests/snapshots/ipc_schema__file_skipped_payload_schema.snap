@@ -1,0 +1,9 @@
+---
+source: tests/ipc_schema.rs
+assertion_line: 24
+expression: p
+---
+{
+  "id": "abc-123",
+  "srcBytes": 1024
+}

@@ -1,0 +1,9 @@
+---
+source: tests/ipc_schema.rs
+assertion_line: 43
+expression: p
+---
+{
+  "id": "abc-123",
+  "note": "Trash unavailable; original backed up to /tmp/foo.jpg.original"
+}
