@@ -5,10 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased] — v0.1.0
-
-> Pending: tag-push smoke test, macOS CI validation, clean-machine install test.
-> See [docs/release-checklist.md](docs/release-checklist.md).
+## [0.1.0] — 2026-04-26
 
 ### Fixed
 - **macOS CI bundle** — `generate-fixtures` moved from `[[bin]]` to `[[example]]`; Tauri bundles all `[[bin]]` entries but skips examples, so the bundler no longer tries to copy the uncompiled dev utility and fails with "does not exist"
