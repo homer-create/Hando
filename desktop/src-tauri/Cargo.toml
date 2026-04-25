@@ -45,10 +45,10 @@ ravif = { version = "0.13", default-features = false, features = [] }
 kamadak-exif = "0.6"
 num_cpus = "1"
 thiserror = "2"
+tempfile = "3"
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
-tempfile = "3"
 
 [profile.release]
 lto = true
