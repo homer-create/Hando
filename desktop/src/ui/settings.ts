@@ -133,6 +133,7 @@ export function openSettingsPanel() {
     const btn = (e.target as HTMLElement).closest('[data-value]') as HTMLElement | null;
     if (!btn) return;
     const pref = btn.dataset.value as ThemePref;
+    current.theme = pref;
     setThemePref(pref);
     overlay.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
   });
