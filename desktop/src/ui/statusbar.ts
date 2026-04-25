@@ -2,19 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { store, FileRow } from '../state';
 import { openTrash } from '../ipc';
-
-function fmtBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { t, fmtBytes, onLocaleChange } from '../i18n';
 
 export function mountStatusBar(root: HTMLElement) {
   root.innerHTML = `<span id="sb-left"></span><span id="sb-right"></span>`;
   const left = root.querySelector('#sb-left') as HTMLElement;
   const right = root.querySelector('#sb-right') as HTMLElement;
-  right.innerHTML = `Originals moved to Trash · <span class="link" id="show-trash">Show</span>`;
-  (right.querySelector('#show-trash') as HTMLElement).onclick = () => { openTrash(); };
+
+  function renderRight() {
+    right.innerHTML = `${t('statusbar.trashHint')} · <span class="link" id="show-trash">${t('statusbar.trashShow')}</span>`;
+    (right.querySelector('#show-trash') as HTMLElement).onclick = () => { openTrash(); };
+  }
 
   function render(rows: FileRow[]) {
     const total = rows.length;
@@ -27,7 +25,7 @@ export function mountStatusBar(root: HTMLElement) {
         <span class="progress-wrap">
           <span class="progress-bar" style="width:${pct}%"></span>
         </span>
-        <span class="progress-label">${completed} / ${total} 張 (${pct}%)</span>`;
+        <span class="progress-label">${t('statusbar.progress', { completed, total, pct })}</span>`;
     } else {
       let saved = 0;
       let done = 0;
@@ -37,9 +35,14 @@ export function mountStatusBar(root: HTMLElement) {
           done++;
         }
       }
-      left.innerHTML = done > 0 ? `Saved <b class="good">${fmtBytes(saved)}</b> across ${done} files` : '';
+      left.innerHTML = done > 0
+        ? t('statusbar.saved', { amount: fmtBytes(saved), count: done })
+        : '';
     }
   }
+
+  renderRight();
   store.subscribe(render);
+  onLocaleChange(() => { renderRight(); render(store.snapshot()); });
   render(store.snapshot());
 }

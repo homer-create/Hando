@@ -1,13 +1,7 @@
 // Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { store, FileRow } from '../state';
-
-function fmtBytes(n?: number): string {
-  if (n === undefined) return '';
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(1)} MB`;
-}
+import { t, fmtBytes, onLocaleChange } from '../i18n';
 
 function statusIcon(row: FileRow): string {
   switch (row.status) {
@@ -31,20 +25,21 @@ export function mountFileList(root: HTMLElement) {
 
   function render(rows: FileRow[]) {
     if (rows.length === 0) {
-      list.innerHTML = `<div class="empty">No files yet. Drag images onto the window.</div>`;
+      list.innerHTML = `<div class="empty">${t('fileList.empty')}</div>`;
       return;
     }
     list.innerHTML = rows.map((r) => `
       <div class="row status-${r.status}" title="${r.path}">
         <span class="icon">${statusIcon(r)}</span>
         <span class="name">${r.name}</span>
-        <span class="size old">${fmtBytes(r.srcBytes)}</span>
-        <span class="size new">${fmtBytes(r.outBytes)}</span>
+        <span class="size old">${r.srcBytes !== undefined ? fmtBytes(r.srcBytes) : ''}</span>
+        <span class="size new">${r.outBytes !== undefined ? fmtBytes(r.outBytes) : ''}</span>
         <span class="savings">${savings(r)}</span>
       </div>
     `).join('');
   }
 
   store.subscribe(render);
+  onLocaleChange(() => render(store.snapshot()));
   render(store.snapshot());
 }
