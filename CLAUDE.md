@@ -4,105 +4,65 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### CLI
-
-```bash
-npm install                                  # install dependencies
-node index.js <input-dir> -o <output-dir>    # run directly
-npm link                                     # expose `hando` globally
-hando <input-dir> -o <output-dir>            # run via linked CLI
-```
-
-### Node tests
-
-```bash
-node --test src/*.test.js        # run all unit tests
-node --test src/config.test.js   # run a single test file
-```
-
 ### Desktop app (Tauri, under `desktop/`)
 
 ```bash
 cd desktop && npm install              # install frontend deps
 cd desktop && npm run tauri dev        # start the desktop app in dev mode
+cd desktop && npm run tauri build      # release build
+cd desktop && npm run dist             # release build + rename artifacts + zip
 cd desktop/src-tauri && cargo build    # compile Rust only
+cd desktop/src-tauri && cargo test     # run Rust unit + integration tests
 ```
 
-**First-time setup (Windows):** Download the Node binary required by the Tauri bundler:
-
-```powershell
-# From repo root — downloads node-x86_64-pc-windows-msvc.exe into desktop/src-tauri/binaries/
-powershell -c "Invoke-WebRequest https://nodejs.org/dist/v20.11.1/node-v20.11.1-win-x64.zip -OutFile $env:TEMP\node.zip; Expand-Archive $env:TEMP\node.zip $env:TEMP\node-dl -Force; Copy-Item $env:TEMP\node-dl\node-v20.11.1-win-x64\node.exe desktop\src-tauri\binaries\node-x86_64-pc-windows-msvc.exe"
-```
+**Windows toolchain note:** Run cargo from the *"x64 Native Tools Command Prompt for VS 2022"* shell. `mozjpeg-sys` and `webp-sys` need MSVC's `cl.exe` and NASM in PATH.
 
 ## Architecture
 
-### CLI (`index.js` + `src/`)
-
-Single ES-module entry point (Node ≥ 18, `sharp`).
-
-Shared modules under `src/`:
-- **`src/config.js`** — exports `CONFIG` (quality defaults, extensions, concurrency)
-- **`src/encoder.js`** — exports `ENCODERS` map and `encode({ srcPath, dstPath, ext, opts })` via Sharp
-
-Pipeline in `index.js`:
-1. **`parseArgs`** — parses `<input-dir> -o <output-dir>`; exits on bad input
-2. **`discoverImages`** — recursive walk collecting `.jpg/.jpeg/.png/.webp`
-3. **`runPool`** — bounded concurrency pool (default 4 workers)
-4. **`processFile`** — per file: calls `encode()` for original format + `.webp` variant via `writeIfNeeded`
-5. **`writeIfNeeded`** — skips if output mtime ≥ source mtime (incremental builds)
-
-### Desktop app (Tauri 2.x, `desktop/`)
-
-Three-tier process model:
+Single-file Tauri 2 desktop app. No CLI, no sidecar.
 
 ```
-WebView (vanilla TS + Vite)
+WebView (TypeScript + Vite)
     ↕ invoke / events (Tauri IPC)
-Rust host (tokio, serde_json, trash, uuid)
-    ↕ JSON-lines over stdin/stdout
-Node sidecar (src/sidecar.js — imports src/encoder.js)
+Rust host (tokio, in-process encoders, trash)
+    └─ encoder facade (encoder/mod.rs)
+        ├─ jpeg.rs   (mozjpeg)
+        ├─ png.rs    (imagequant + oxipng)
+        ├─ webp.rs   (libwebp via webp crate)
+        └─ avif.rs   (ravif via rav1e)
 ```
 
 **Rust host (`desktop/src-tauri/src/`):**
-- `sidecar.rs` — spawns Node sidecar, async JSON-lines reader/writer over tokio channels; emits `sidecar-crashed` on EOF
-- `commands.rs` — `compress`: sends encode jobs to sidecar, applies Trash + copy-fallback rename per file, tracks companion paths; `undo_last_batch`: deletes compressed files + companions and restores originals from Trash; `open_trash`, `confirm_close`
-- `batch.rs` — tracks disposals (including companion paths) per batch for Undo
-- `trash.rs` — wraps `trash` crate with `\\?\` prefix stripping for Windows Recycle Bin compatibility; falls back to `.original` rename if Trash unavailable
-- Plugins: `tauri-plugin-store` (settings), `tauri-plugin-fs` (folder expansion), `tauri-plugin-dialog` (file picker)
+- `commands.rs` — `compress`: spawns one `tokio::task::spawn_blocking` per file, gated by a `Semaphore` of `(num_cpus - 1).clamp(1, 8)`; calls `encoder::encode()`; emits `file-done` / `file-error` / `file-skipped` / `companion-error` / `trash-fallback` events. `undo_last_batch`: deletes compressed files + companions and restores originals from Trash.
+- `encoder/mod.rs` — `encode()` facade. Dispatches by `ImageExt`. Returns `EncodeOutcome::Encoded(EncodeResult)` or `EncodeOutcome::SkippedNoGain`.
+- `encoder/decode.rs` — Unified RGBA decode. JPEG via `mozjpeg::Decompress`; PNG/WebP/AVIF via `image::ImageReader`. Applies EXIF orientation by rotating the pixel buffer, then strips EXIF on encode.
+- `encoder/event_sink.rs` — `EventSink` trait with `TauriEmitter` (production) and `MockSink` (tests). Avoids the brittle `tauri::test::mock_app()` API entirely.
+- `batch.rs` — `BatchState` with atomic `completed`/`expected` counters; `tick()` emits `batch-done` when the last file completes.
+- `trash.rs` — Wraps `trash` crate; `\\?\` prefix stripping for Windows; `.original` rename fallback.
 
 **Frontend (`desktop/src/`):**
-- `state.ts` — reactive `Store` (Map keyed by path + subscriber set), `FileRow` type
-- `ipc.ts` — typed wrappers for `invoke('compress')`, `invoke('undo_last_batch')`, `invoke('open_trash')`, and `listen()` for `file-done / file-error / file-skipped` events; `toOpts()` maps Settings → EncodeOpts
-- `fs.ts` — `expandPaths()`: recursive folder expansion via `tauri-plugin-fs`, filters to supported extensions
-- `ui/dropzone.ts` — uses `getCurrentWindow().onDragDropEvent()` (Tauri 2 API) for drag-drop; `@tauri-apps/plugin-dialog` `open()` for click-to-add
-- `ui/file-list.ts` — subscribes to store, renders grid rows with status icons, size columns, savings %
-- `ui/toolbar.ts` — Settings + Undo buttons; returns `ToolbarApi` with `setUndoEnabled`
-- `ui/settings.ts` — overlay panel with JPEG/PNG/WebP/AVIF quality sliders and Emit WebP/AVIF toggles; persisted via `tauri-plugin-store`
-- `ui/statusbar.ts` — shows progress bar during compression; cumulative saved bytes + Show Trash link when done
-
-**Node sidecar (`src/sidecar.js`):**
-Reads JSON-lines commands from stdin, encodes via `encode()`, writes JSON-lines events to stdout. Concurrency pool (`CONFIG.CONCURRENCY = 4`). Events: `done`, `error`, `skipped-no-gain`, `companion-error`, `parse-error`. Supports `emitWebp` and `emitAvif` companion outputs.
+- `state.ts`, `ipc.ts`, `fs.ts`, `ui/*.ts` — unchanged from the sidecar era except for `ipc.ts` removing the `tmp` field from `FileDonePayload` and adding `onBatchDone` / `BatchDonePayload`.
+- `main.ts` — subscribes to `batch-done` to enable Undo authoritatively. The previous `sidecar-crashed` listener was removed.
 
 **Supported formats:** JPEG, PNG, WebP, AVIF (encode + companion output).
 
 **Key data flow for a compress batch:**
 1. User drops files / clicks to add → `expandPaths` filters to supported extensions
 2. Frontend `invoke('compress', { batchId, files, opts, moveOriginalsToTrash })`
-3. Rust sends one `encode` JSON-line per file to Node sidecar
-4. Sidecar encodes main + optional WebP/AVIF companions to temp paths, emits `done`
-5. Rust receives `done`: trashes original (with `\\?\` strip for Windows), copy-fallback renames temp → src, places companions alongside, records disposal + companion paths
-6. Rust emits `file-done` Tauri event → frontend updates store row
+3. Rust queues each file as a `spawn_blocking` task, semaphore-gated
+4. Each task: decode → encode main + optional WebP/AVIF companions → write tmp paths
+5. Per-file: place tmp at src path (rename or copy fallback), trash original, emit `file-done`
+6. Each task `tick()`s the batch counter; the last one emits `batch-done`
 
-**Undo:** `BatchState` tracks `Disposal` records (Trash path or `.original` backup + companion paths). `undo_last_batch` deletes compressed files and companions, then calls `trash::restore_all` to recover originals from Recycle Bin.
+**Undo:** `BatchState` tracks `Disposal` records (Trash path or `.original` backup + companion paths). `undo_last_batch` deletes compressed files + companions, then `trash::restore_all` recovers originals.
 
 **Windows-specific notes:**
 - `Path::canonicalize()` returns `\\?\`-prefixed paths; `trash.rs` strips this before storing so Recycle Bin lookup matches
 - Cross-drive `fs::rename` fails (e.g. `C:\Temp` → `D:\files`); `commands.rs` falls back to `fs::copy` + `remove_file`
-- Node binary must be pre-downloaded to `desktop/src-tauri/binaries/node-x86_64-pc-windows-msvc.exe` (gitignored)
+- mozjpeg-sys requires MSVC + NASM (see Windows toolchain note above)
 
 ## Docs
 
 Design specs and implementation plans live in `docs/superpowers/`:
-- `specs/` — design specs (CLI and desktop app)
-- `plans/` — implementation plans; desktop plan is `2026-04-24-imageopt-desktop.md`
+- `specs/` — design specs (desktop app + rust-native encoder)
+- `plans/` — implementation plans; the rust-native encoder refactor is `2026-04-25-rust-native-encoder.md`
