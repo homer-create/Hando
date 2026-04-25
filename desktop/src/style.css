@@ -1,3 +1,10 @@
+@font-face {
+  font-family: 'Goldman';
+  src: url('./fonts/Goldman-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
 :root {
   --bg:             #ffffff;
   --bg-elevated:    #f5f5f5;
@@ -26,7 +33,7 @@
 body { margin: 0; font-family: -apple-system, system-ui, sans-serif; color: var(--text); background: var(--bg); }
 #app { display: flex; flex-direction: column; height: 100vh; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
-.toolbar .title { font-weight: 600; }
+.toolbar .title { font-weight: normal; font-family: 'Goldman', sans-serif; }
 .toolbar .btn { margin-left: 6px; padding: 4px 10px; background: transparent; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px; color: var(--text); }
 .toolbar .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 #dropzone { padding: 10px 14px; }
