@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use crate::batch::BatchState;
+use crate::encoder::event_sink::TauriEmitter;
 use crate::sidecar::{EncodeCommand, EncodeOpts, Sidecar, SidecarEvent};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -183,7 +184,7 @@ pub async fn compress(
     args: CompressArgs,
 ) -> Result<(), String> {
     ensure_sidecar(&app, &sc_state).await?;
-    batches.start(args.batch_id.clone());
+    batches.start(&args.batch_id, args.files.len());
 
     let mut src_by_id: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for f in &args.files { src_by_id.insert(f.id.clone(), f.path.clone()); }
@@ -246,7 +247,7 @@ pub async fn compress(
                 None => break,
             }
         }
-        batches.complete(&batch_id);
+        batches.tick(&batch_id, &TauriEmitter::new(app_c.clone()));
     });
     Ok(())
 }
