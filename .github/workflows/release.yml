@@ -67,6 +67,16 @@ jobs:
           prerelease: false
           args: ${{ matrix.args }}
 
+      - name: Ad-hoc sign macOS app
+        # Zero-cost ad-hoc signature. Doesn't remove the Gatekeeper warning
+        # (only Apple notarization does), but ensures Apple Silicon can launch
+        # the binary at all and gives the app a stable code identity.
+        if: matrix.platform == 'macos-14'
+        run: |
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Hando.app"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --verbose=2 "$APP"
+
       - name: Build portable artifact
         env:
           TARGET: ${{ matrix.platform == 'macos-14' && 'universal-apple-darwin' || '' }}
