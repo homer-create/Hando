@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [0.1.1] — 2026-04-27
 
 ### Added
 - **CI ad-hoc macOS signing** — `release.yml` now runs `codesign --force --deep --sign -` on the universal `.app` after Tauri build; ensures Apple Silicon can launch the binary and gives the app a stable code identity (does not remove the Gatekeeper warning, which still requires Apple notarization)
@@ -94,4 +94,4 @@ Initial Tauri desktop app. Encoding handled by a bundled Node sidecar process (`
 
 ---
 
-[Unreleased]: https://github.com/homershie/Hando/compare/HEAD...HEAD
+[0.1.1]: https://github.com/homershie/Hando/compare/v0.1.0...v0.1.1
