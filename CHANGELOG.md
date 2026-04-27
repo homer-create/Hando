@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Added
+- **CI ad-hoc macOS signing** — `release.yml` now runs `codesign --force --deep --sign -` on the universal `.app` after Tauri build; ensures Apple Silicon can launch the binary and gives the app a stable code identity (does not remove the Gatekeeper warning, which still requires Apple notarization)
+- **README macOS first-launch instructions** — bilingual (EN/中文) `xattr -cr` workaround for the Gatekeeper warning on unsigned builds, plus a Sponsor section linking Ko-fi for users who want to help cover the Apple Developer Program fee toward future notarization
+
+### Fixed
+- **macOS portable .app.zip was non-launchable** — `scripts/build-dist.mjs` was zipping with `zip -r -j`; the `-j` ("junk paths") flag flattens directory structure and broke the `.app` bundle. Now zips from the parent dir with the relative bundle name and `-y` to preserve symlinks (Frameworks inside `.app` rely on them).
+
+---
+
 ## [0.1.0] — 2026-04-26
 
 ### Added

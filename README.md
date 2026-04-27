@@ -26,6 +26,22 @@ Pre-built binaries are published in [Releases](../../releases). Single executabl
 | Windows x64 | `Hando-win-x64-v*.exe` |
 | macOS Universal | `Hando-mac-universal-v*.app.zip` |
 
+### macOS first launch
+
+Hando is currently distributed without an Apple Developer ID signature, so on first launch macOS Gatekeeper will refuse to open it with: *"Apple cannot verify that 'Hando' is free of malicious software..."*
+
+To allow it, run the following once in **Terminal**:
+
+```bash
+xattr -cr /path/to/Hando.app
+```
+
+Replace `/path/to/Hando.app` with the actual location, e.g. `~/Downloads/Hando.app` or `/Applications/Hando.app`. After this, double-click works as normal.
+
+> **中文：** 由於 Hando 目前未通過 Apple 公證，首次開啟會出現「Apple 無法驗證『Hando』是否為惡意軟體」警告。請在「終端機」執行 `xattr -cr /Hando.app 的路徑`（例如 `~/Downloads/Hando.app`），之後即可正常使用。
+>
+> Apple Developer Program 收費 $99 美金/年。若你願意贊助以支援未來正式公證，請參考下方 [Sponsor](#sponsor) 區塊。
+
 ## Build from source
 
 ### Prerequisites
@@ -64,6 +80,12 @@ Briefly:
 2. Commit and tag: `git tag v0.2.0 && git push origin v0.2.0`.
 3. GitHub Actions builds Windows + macOS-universal artifacts and creates a draft release.
 4. Edit the draft release notes, then publish.
+
+## Sponsor
+
+Hando is open source and free. If it saved you time, a small tip helps cover Apple Developer Program fees ($99/year) so future builds can be properly signed and notarized — removing the macOS Gatekeeper warning for everyone.
+
+[![ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/homershie)
 
 ## License
 

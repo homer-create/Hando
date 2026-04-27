@@ -11,7 +11,7 @@
 
 import { readFile, copyFile, mkdir, stat } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { platform, arch } from 'node:os';
 
@@ -61,12 +61,24 @@ async function main() {
 function zipFile(src, dst) {
   return new Promise((resolve, reject) => {
     const isWin = platform() === 'win32';
-    const cmd = isWin ? 'powershell' : 'zip';
-    const args = isWin
-      ? ['-NoProfile', '-Command', `Compress-Archive -Path '${src}' -DestinationPath '${dst}' -Force`]
-      : ['-r', '-j', dst, src];
-    const child = spawn(cmd, args, { stdio: 'inherit' });
-    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`${cmd} exited ${code}`)));
+    if (isWin) {
+      const child = spawn(
+        'powershell',
+        ['-NoProfile', '-Command', `Compress-Archive -Path '${src}' -DestinationPath '${dst}' -Force`],
+        { stdio: 'inherit' },
+      );
+      child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`powershell exited ${code}`)));
+      child.on('error', reject);
+      return;
+    }
+    // macOS .app bundle: zip from the parent dir with the relative name so the
+    // bundle's directory structure is preserved. -y keeps symlinks (Frameworks
+    // inside .app rely on them). Previously used -j, which junks paths and
+    // produced a flat zip that wasn't a launchable .app.
+    const parent = dirname(src);
+    const name = basename(src);
+    const child = spawn('zip', ['-r', '-y', '-q', dst, name], { cwd: parent, stdio: 'inherit' });
+    child.on('exit', (code) => code === 0 ? resolve() : reject(new Error(`zip exited ${code}`)));
     child.on('error', reject);
   });
 }
