@@ -29,6 +29,28 @@ const B1_BPP_THRESHOLD: f64 = 1.0;
 /// 2–5 bpp, so they stay on the normal B1 path.
 const LOSSY_FUTILE_BPP: f64 = 8.0;
 
+/// Pixel count at/above which the large-image knob guards kick in
+/// (2MP ≈ 1080p, docs/goal-learnings.md).
+const LARGE_IMAGE_PIXELS: u64 = 2_000_000;
+
+fn is_large(decoded: &DecodedImage) -> bool {
+    decoded.width as u64 * decoded.height as u64 >= LARGE_IMAGE_PIXELS
+}
+
+/// AVIF speed for auto-mode searches: 2MP+ sources start at speed 9 — half
+/// the encode time for ~6% size (realphoto avif@85: 3063ms → 1579ms). Never
+/// slows down a faster user-chosen speed.
+fn auto_avif_speed(decoded: &DecodedImage, opts: &EncodeOpts) -> u8 {
+    if is_large(decoded) { opts.avif_speed.max(9) } else { opts.avif_speed }
+}
+
+/// oxipng level for auto-mode candidates: photo-grade 2MP+ PNGs take >3s per
+/// probe at level 4 (realphoto: 3694ms) and the quality search multiplies
+/// that — cap at 2. Never raises a lighter user-chosen level.
+fn auto_oxipng_level(decoded: &DecodedImage, opts: &EncodeOpts) -> u8 {
+    if is_large(decoded) { opts.png_oxipng_level.min(2) } else { opts.png_oxipng_level }
+}
+
 /// Quality search granularity. Searching on a lattice of step 4 keeps the
 /// binary search to ~5 encode+judge rounds; differences under 4 quality
 /// points are visually negligible.
@@ -95,9 +117,10 @@ pub fn encode_auto(
     match ext {
         ImageExt::Png => {
             // A-class: lossless and quantized candidates compete (rubric §5)
-            let lossless = png::encode(decoded, 100, opts.png_oxipng_level).ok();
+            let level = auto_oxipng_level(decoded, opts);
+            let lossless = png::encode(decoded, 100, level).ok();
             let quantized = search_min_quality(decoded, gate, ImageExt::Png, |q| {
-                png::encode(decoded, q, opts.png_oxipng_level)
+                png::encode(decoded, q, level)
             });
             Ok(pick_smaller(lossless, quantized))
         }
@@ -136,8 +159,9 @@ pub fn encode_auto(
         }
         ImageExt::Avif => {
             // No lossless transcode path exists for AVIF; tightly-gated re-encode
+            let speed = auto_avif_speed(decoded, opts);
             Ok(search_min_quality(decoded, gate, ImageExt::Avif, |q| {
-                avif::encode(decoded, q, opts.avif_speed)
+                avif::encode(decoded, q, speed)
             }))
         }
     }
@@ -155,9 +179,12 @@ pub fn encode_companion_auto(
         ImageExt::Webp => search_min_quality(decoded, gate, ImageExt::Webp, |q| {
             webp::encode(decoded, q, opts.webp_method)
         }),
-        ImageExt::Avif => search_min_quality(decoded, gate, ImageExt::Avif, |q| {
-            avif::encode(decoded, q, opts.avif_speed)
-        }),
+        ImageExt::Avif => {
+            let speed = auto_avif_speed(decoded, opts);
+            search_min_quality(decoded, gate, ImageExt::Avif, |q| {
+                avif::encode(decoded, q, speed)
+            })
+        }
         other => {
             return Err(EncodeError::Encode(format!(
                 "unsupported auto companion format {other:?}"
@@ -337,6 +364,31 @@ mod tests {
         let identical = judge::pixels_identical(&baseline, &dec);
         let _ = std::fs::remove_file(&out.tmp_path);
         assert!(identical, "futile-bpp JPEG must come from the lossless transcode");
+    }
+
+    #[test]
+    fn large_image_knob_guards() {
+        // 2026-06-11 goal loop：2MP+ 來源 avif speed <9 / oxipng >2 會把單發
+        // 編碼時間撐破預算（搜尋還要乘上發數）；小圖維持使用者旋鈕。
+        let dims = |w: u32, h: u32| DecodedImage {
+            rgba: Vec::new(),
+            width: w,
+            height: h,
+            icc_profile: None,
+        };
+        let small = dims(320, 240);
+        let large = dims(1920, 1080); // 2,073,600 px ≥ 2MP
+        let o = opts(); // avif_speed 8, png_oxipng_level 4
+
+        assert_eq!(auto_avif_speed(&small, &o), 8, "small keeps user speed");
+        assert_eq!(auto_avif_speed(&large, &o), 9, "large floors at speed 9");
+        let fast = EncodeOpts { avif_speed: 10, ..opts() };
+        assert_eq!(auto_avif_speed(&large, &fast), 10, "never slows a faster user choice");
+
+        assert_eq!(auto_oxipng_level(&small, &o), 4, "small keeps user level");
+        assert_eq!(auto_oxipng_level(&large, &o), 2, "large caps at level 2");
+        let light = EncodeOpts { png_oxipng_level: 1, ..opts() };
+        assert_eq!(auto_oxipng_level(&large, &light), 1, "never raises a lighter user choice");
     }
 
     #[test]

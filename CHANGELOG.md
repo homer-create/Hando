@@ -8,6 +8,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Changed
+- **2MP+ 大圖的 auto 模式旋鈕守門** — AVIF 搜尋速度起手抬到 max(使用者值, 9)：實測時間砍半（realphoto avif@85 3063ms→1579ms）、體積只多 ~6%；PNG 候選的 oxipng 壓到 min(使用者值, 2)：level 4 在 2MP 照片級 PNG 單發 3.7s，乘上搜尋發數會把單張時間撐爆。manual 模式不受影響（單發、使用者明示旋鈕）
 - **超高 bpp JPEG（≥8 bpp）的 auto 模式直走無損轉碼** — 顆粒照片（如 24MP、bpp≈10 的 large_photo）有損候選全滅：q75→q85 分數只 5.27→16.10（ssimulacra2 重罰顆粒被抹掉），每發 encode+judge 還要 3–8s；現在 bpp ≥ 8 跳過整輪有損搜尋直接 DCT 轉碼，單張省下數十秒白燒，相機直出 JPEG（2–5 bpp）不受影響
 - **S 值人眼定案** — homer 以 `docs/calibration/` 階梯樣本並排複核，可見差異約從 s ≈ 70–75 開始，三檔 preset（視覺無損 90 / 平衡 80 / 激進 70）維持原值定案；`PRESET_TARGETS` 不變，`docs/calibration.md` 與 `docs/rubric.md` 狀態更新。實拍照片複核仍列待辦（合成 fixtures 偏好壓，重點是激進檔 70 是否要抬）
 
