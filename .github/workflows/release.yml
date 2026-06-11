@@ -44,9 +44,20 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: choco install nasm -y
 
-      - name: Install NASM (macOS)
+      - name: Install NASM 2.15.05 (macOS)
+        # NASM 2.16+ changed -MD flag behaviour: `nasm -MD /dev/null /dev/null`
+        # now exits non-zero, breaking libaom-sys's cmake multipass test.
+        # Build 2.15.05 from source so we get a native arm64 binary that passes the test.
         if: matrix.platform == 'macos-14'
-        run: brew install nasm
+        run: |
+          curl -L https://www.nasm.us/pub/nasm/releasebuilds/2.15.05/nasm-2.15.05.tar.xz \
+               -o /tmp/nasm.tar.xz
+          tar -xf /tmp/nasm.tar.xz -C /tmp
+          cd /tmp/nasm-2.15.05
+          ./configure --prefix=/usr/local
+          make -j$(sysctl -n hw.ncpu)
+          sudo make install
+          nasm --version
 
       - name: Setup Node
         uses: actions/setup-node@v4
