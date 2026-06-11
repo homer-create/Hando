@@ -21,6 +21,18 @@ export interface Messages {
     theme: string;
     themeAuto: string;
     themeLight: string;
+    mode: string;
+    modeAuto: string;
+    modeManual: string;
+    preset: string;
+    presetLossless: string;
+    presetBalanced: string;
+    presetAggressive: string;
+    advanced: string;
+    avifSpeed: string;
+    oxipngLevel: string;
+    webpMethod: string;
+    jpegProgressive: string;
     themeDark: string;
   };
   confirm: { quitProcessing: string };
@@ -56,6 +68,18 @@ const messages: Messages = {
     theme: 'Theme',
     themeAuto: 'Auto',
     themeLight: 'Light',
+    mode: 'Mode',
+    modeAuto: 'Auto (quality target)',
+    modeManual: 'Manual',
+    preset: 'Quality target',
+    presetLossless: 'Visually lossless',
+    presetBalanced: 'Balanced',
+    presetAggressive: 'Aggressive',
+    advanced: 'Advanced',
+    avifSpeed: 'AVIF speed',
+    oxipngLevel: 'PNG effort (oxipng)',
+    webpMethod: 'WebP effort (method)',
+    jpegProgressive: 'Progressive JPEG',
     themeDark: 'Dark',
   },
   confirm: { quitProcessing: '{count} files still processing. Quit anyway?' },

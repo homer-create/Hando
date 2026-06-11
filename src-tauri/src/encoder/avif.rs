@@ -13,7 +13,10 @@ fn avif_thread_count() -> usize {
     (num_cpus::get() / 2).clamp(2, 4)
 }
 
-pub fn encode(decoded: &DecodedImage, quality: u32) -> Result<EncodedFile, EncodeError> {
+pub fn encode(decoded: &DecodedImage, quality: u32, speed: u8) -> Result<EncodedFile, EncodeError> {
+    // Known limitation: ravif/avif-serialize only write nclx `colr` boxes, so
+    // `decoded.icc_profile` cannot be re-embedded here — AVIF output drops the
+    // ICC profile (docs/rubric.md §0.5 metadata row).
     let q = quality.clamp(1, 100) as f32;
 
     let img = ravif::Img::new(
@@ -24,7 +27,7 @@ pub fn encode(decoded: &DecodedImage, quality: u32) -> Result<EncodedFile, Encod
 
     let result = ravif::Encoder::new()
         .with_quality(q)
-        .with_speed(8)
+        .with_speed(speed.clamp(1, 10))
         .with_num_threads(Some(avif_thread_count()))
         .encode_rgba(img)
         .map_err(|e| EncodeError::Encode(format!("ravif: {e}")))?;
@@ -63,7 +66,7 @@ mod tests {
     #[test]
     fn encodes_avif_and_produces_file() {
         let decoded = decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
-        let out = encode(&decoded, 60).unwrap();
+        let out = encode(&decoded, 60, 8).unwrap();
         assert_eq!(out.ext, ImageExt::Avif);
         assert!(out.bytes > 0);
         assert!(out.tmp_path.exists());
@@ -73,7 +76,7 @@ mod tests {
     fn avif_is_smaller_than_jpeg_source() {
         let decoded = decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
         let src_bytes = std::fs::metadata(fixture("landscape.jpg")).unwrap().len();
-        let out = encode(&decoded, 60).unwrap();
+        let out = encode(&decoded, 60, 8).unwrap();
         assert!(out.bytes < src_bytes, "AVIF q60 {} should be < JPEG src {}", out.bytes, src_bytes);
     }
 }

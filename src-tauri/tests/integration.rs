@@ -23,6 +23,7 @@ fn opts() -> EncodeOpts {
         avif_quality: 60,
         emit_webp: false,
         emit_avif: false,
+        ..EncodeOpts::default()
     }
 }
 

@@ -5,6 +5,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [Unreleased]
+
+### Fixed
+- **ICC profile passthrough（重壓路徑）** — decode 原本直接丟棄 ICC（`decode.rs` `let icc = None`），廣色域來源（如 iPhone 的 Display P3）重壓後會偏色；新增 `encoder/icc.rs`，decode 端抽出（JPEG APP2 / PNG iCCP / WebP ICCP / AVIF colr-prof box），encode 端重嵌（JPEG APP2 / PNG iCCP / WebP 升級為 VP8X+ICCP container），含 ICC fixtures 與各格式 roundtrip 測試。已知限制：AVIF **輸出**端 ravif/avif-serialize 只支援 nclx，無法嵌 ICC，AVIF 輸出（含 companion）仍會丟 profile（rubric §0.5 已記）
+- **JPEG ICC 寫入避開 mozjpeg crate 的 0-based bug** — mozjpeg 0.10.13 的 `write_icc_profile` 把 APP2 分段編號寫成 0-based（ICC 規範是 1-based），合規讀取器（如 libjpeg-turbo 的 `jpeg_read_icc_profile`）會拒讀；改用自家 `icc::jpeg_app2_segments`（1-based）+ `write_marker`，讀取端則同時容忍 0-based 檔案
+- **JPEG progressive 開關原本是 no-op** — mozjpeg 預設就是 progressive，舊程式的 `set_progressive_mode()` 呼叫並沒有改變任何行為；現在 `jpegProgressive=false` 走 `set_fastest_defaults()`（baseline profile），檔案大 ~3 倍但編碼快 2–9 倍，開關才有真實意義
+- **SkippedNoGain 殘留暫存檔** — encode 在「省 <2% 即跳過」時沒刪掉已寫出的 tmp 檔，長期使用會在暫存目錄累積垃圾；現在 skip 前先清掉
+- **AVIF input could not be decoded** — the `image` crate's `avif` feature is encode-only, so dropping an `.avif` file failed at runtime with "format not supported"; AVIF decode now goes through `avif-decode` (bundled libaom, no system dependency), with 8/16-bit and gray/alpha variants normalized to RGBA8
+
+### Added
+- **裁判（judge）模組** — `encoder/judge.rs`：ssimulacra2 感知畫質評分（基準圖 vs 候選）、無損逐像素比對 `pixels_identical`、輸入閘用的 `bits_per_pixel`；rubric §3 的硬門檻從此可量測
+- **bench harness** — `examples/bench.rs`：對 `tests/fixtures/` 整批跑 候選（格式 × 品質階梯），輸出 rubric 三數字 size / ssimulacra2 / encode-time 的 markdown 表；`calibrate` 子命令產出 §8.2 人眼校準用的品質階梯樣本（檔名含分數）
+- **S 值校準文件** — `docs/calibration.md`：記錄量測階梯、暫定 preset 值（視覺無損 90 / 平衡 80 / 激進 70）與人眼定案步驟；樣本目錄 `docs/calibration/` 進 gitignore
+- **編碼器旋鈕外露** — `EncodeOpts` 新增 `avifSpeed`（1–10）、`pngOxipngLevel`（0–6）、`webpMethod`（0–6）、`jpegProgressive`，全部帶 serde default 向後相容；WebP 改走 `encode_advanced`（lossless 模式設 `exact=1`，透明像素下的 RGB 不再被改寫，rubric §2 像素相同門檻才守得住）
+- **參數網格與預設值調整** — `bench grid` 子命令掃 旋鈕組合；依數據把 oxipng 預設 2 → 4（再省 8–28%、時間仍 <2.5s/張），AVIF speed 8 與 WebP method 4 經數據確認保留；詳見 `docs/bench-results.md`
+- **自動品質模式（quality-targeted encoding）** — `encoder/auto.rs`：對每張圖在步進 4 的品質格上二分搜尋「過 ssimulacra2 目標 S 的最小品質」（~5 輪收斂），無損與有損候選競爭取最小（rubric §5）；B 類輸入依 bpp 分級：高 bpp（相機 JPEG）用 preset S 重壓、低 bpp 的 JPEG 只走無損轉碼、無轉碼可走的格式門檻抬到 max(S, 90) 綁住世代損失（rubric §4）。`EncodeOpts` 新增 `mode`（serde default = manual，舊前端不受影響）與 `targetQuality`
+- **設定 UI：模式與畫質目標** — 預設改為自動模式，三檔 preset（視覺無損 90 / 平衡 80 / 激進 70，暫定值見 `docs/calibration.md`）；手動模式保留四條 quality 滑桿；新增進階區（AVIF 速度、PNG/WebP 壓縮力度、漸進式 JPEG）；7 個語系的 i18n 全數補齊
+- **JPEG 無損轉碼** — `encoder/jpeg.rs::optimize_lossless()`：jpegtran -optimize -progressive 等價的 DCT 係數轉碼（mozjpeg-sys FFI），像素 bit-identical、零畫質風險，保留 ICC（APP2）；EXIF 旋轉來源自動跳過（轉碼會剝 orientation tag）。已接進 encode 流程：JPEG 有損重壓省不到 2% 時改試無損轉碼當第二機會，原本被 skip 的高壓 JPEG 現在常能免費再省幾 %
+- **docs/rubric.md** — AI 優化 loop 用的驗收 rubric；複查後改寫為「施工藍圖」格式：新增 §0.5 現況盤點（標明 ssimulacra2 / bench harness / JPEG 無損轉碼皆為 TODO）、比較基準改為「基準圖」（套用 orientation、剝除 metadata 後的 raw，修正 EXIF 旋轉圖會被冤枉淘汰的邏輯 bug）、移除未支援的 JXL、§8 施工順序含自動品質模式（quality-targeted encoding）的產品方向
+
+---
+
 ## [0.1.1] — 2026-04-27
 
 ### Added

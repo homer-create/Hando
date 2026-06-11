@@ -2,21 +2,31 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { Settings } from './ui/settings';
+import { PRESET_TARGETS, Settings } from './ui/settings';
 
 export interface CompressFile { id: string; path: string; ext: string; }
+
+export interface EncodeOpts {
+  jpegQuality: number;
+  pngQuality: number;
+  webpQuality: number;
+  avifQuality: number;
+  emitWebp: boolean;
+  emitAvif: boolean;
+  avifSpeed: number;
+  pngOxipngLevel: number;
+  webpMethod: number;
+  jpegProgressive: boolean;
+  /** 'auto' = quality-targeted encoding against targetQuality; 'manual' = fixed sliders */
+  mode: 'auto' | 'manual';
+  /** ssimulacra2 target S for auto mode */
+  targetQuality: number;
+}
 
 export interface CompressArgs {
   batchId: string;
   files: CompressFile[];
-  opts: {
-    jpegQuality: number;
-    pngQuality: number;
-    webpQuality: number;
-    avifQuality: number;
-    emitWebp: boolean;
-    emitAvif: boolean;
-  };
+  opts: EncodeOpts;
   moveOriginalsToTrash: boolean;
 }
 
@@ -37,7 +47,7 @@ export function onFileSkipped(cb: (p: FileSkippedPayload) => void) { return list
 export function onBatchDone(cb: (p: BatchDonePayload) => void) { return listen<BatchDonePayload>('batch-done', (e) => cb(e.payload)); }
 export function onFileProgress(cb: (p: FileProgressPayload) => void) { return listen<FileProgressPayload>('file-progress', (e) => cb(e.payload)); }
 
-export function toOpts(s: Settings) {
+export function toOpts(s: Settings): EncodeOpts {
   return {
     jpegQuality: s.jpegQuality,
     pngQuality: s.pngQuality,
@@ -45,6 +55,12 @@ export function toOpts(s: Settings) {
     avifQuality: s.avifQuality,
     emitWebp: s.emitWebp,
     emitAvif: s.emitAvif,
+    avifSpeed: s.avifSpeed,
+    pngOxipngLevel: s.pngOxipngLevel,
+    webpMethod: s.webpMethod,
+    jpegProgressive: s.jpegProgressive,
+    mode: s.mode,
+    targetQuality: PRESET_TARGETS[s.preset],
   };
 }
 

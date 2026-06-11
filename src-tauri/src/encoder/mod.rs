@@ -6,8 +6,11 @@ use std::str::FromStr;
 use thiserror::Error;
 use serde::{Deserialize, Serialize};
 
+pub mod auto;
 pub mod decode;
 pub mod event_sink;
+pub mod icc;
+pub mod judge;
 pub mod jpeg;
 pub mod png;
 pub mod webp;
@@ -48,6 +51,8 @@ impl ImageExt {
 }
 
 /// Settings forwarded from the frontend. Field names match TS via serde camelCase.
+/// Effort knobs default to the previous hardcoded values so older frontends
+/// (and stored settings) keep working unchanged.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EncodeOpts {
@@ -57,6 +62,63 @@ pub struct EncodeOpts {
     pub avif_quality: u32,
     pub emit_webp: bool,
     pub emit_avif: bool,
+    /// ravif speed 1 (slowest/smallest) ..= 10 (fastest)
+    #[serde(default = "default_avif_speed")]
+    pub avif_speed: u8,
+    /// oxipng preset 0 (fastest) ..= 6 (max effort)
+    #[serde(default = "default_oxipng_level")]
+    pub png_oxipng_level: u8,
+    /// libwebp method 0 (fastest) ..= 6 (slowest/smallest)
+    #[serde(default = "default_webp_method")]
+    pub webp_method: u8,
+    /// progressive scan script + optimized scans for JPEG output
+    #[serde(default = "default_true")]
+    pub jpeg_progressive: bool,
+    /// `manual` = fixed quality numbers (legacy behavior); `auto` = search the
+    /// smallest quality that still clears `target_quality` (rubric §8.6).
+    /// Defaults to manual so older frontends/stored settings are unaffected.
+    #[serde(default)]
+    pub mode: EncodeMode,
+    /// ssimulacra2 target `S` for auto mode. Presets in the UI: 90 visually
+    /// lossless / 80 balanced / 70 aggressive (docs/calibration.md).
+    #[serde(default = "default_target_quality")]
+    pub target_quality: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EncodeMode {
+    #[default]
+    Manual,
+    Auto,
+}
+
+fn default_target_quality() -> f64 { 90.0 }
+fn default_avif_speed() -> u8 { 8 }
+// level 4 over the old 2: −8…−28% size on fixtures for ~2x time, still well
+// inside the per-file budget (see docs/bench-results.md)
+fn default_oxipng_level() -> u8 { 4 }
+fn default_webp_method() -> u8 { 4 }
+fn default_true() -> bool { true }
+
+impl Default for EncodeOpts {
+    /// Mirrors the frontend DEFAULT_SETTINGS in src/ui/settings.ts.
+    fn default() -> Self {
+        EncodeOpts {
+            jpeg_quality: 75,
+            png_quality: 75,
+            webp_quality: 75,
+            avif_quality: 50,
+            emit_webp: false,
+            emit_avif: false,
+            avif_speed: default_avif_speed(),
+            png_oxipng_level: default_oxipng_level(),
+            webp_method: default_webp_method(),
+            jpeg_progressive: true,
+            mode: EncodeMode::Manual,
+            target_quality: default_target_quality(),
+        }
+    }
 }
 
 pub struct EncodeRequest<'a> {
@@ -117,25 +179,52 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
     progress(20);
     let src_bytes = std::fs::metadata(req.src_path)?.len();
 
-    let main = match req.ext {
-        ImageExt::Jpeg => jpeg::encode(&decoded, req.opts.jpeg_quality)?,
-        ImageExt::Png  => png::encode(&decoded, req.opts.png_quality)?,
-        ImageExt::Webp => webp::encode(&decoded, req.opts.webp_quality)?,
-        ImageExt::Avif => avif::encode(&decoded, req.opts.avif_quality)?,
+    let auto_mode = req.opts.mode == EncodeMode::Auto;
+
+    let mut main = if auto_mode {
+        match auto::encode_auto(req.src_path, req.ext, &decoded, req.opts, src_bytes)? {
+            Some(f) => f,
+            // No candidate cleared the quality gates — nothing can be
+            // improved within the target, which the UI reports as a skip.
+            None => return Ok(EncodeOutcome::SkippedNoGain { src_bytes }),
+        }
+    } else {
+        match req.ext {
+            ImageExt::Jpeg => jpeg::encode(&decoded, req.opts.jpeg_quality, req.opts.jpeg_progressive)?,
+            ImageExt::Png  => png::encode(&decoded, req.opts.png_quality, req.opts.png_oxipng_level)?,
+            ImageExt::Webp => webp::encode(&decoded, req.opts.webp_quality, req.opts.webp_method)?,
+            ImageExt::Avif => avif::encode(&decoded, req.opts.avif_quality, req.opts.avif_speed)?,
+        }
     };
     progress(75);
 
     // Skip if savings are less than 2% of the source — prevents endless re-compression
     // of already-optimized files where the encoder finds only marginal improvements.
     if main.bytes * 100 >= src_bytes * 98 {
-        return Ok(EncodeOutcome::SkippedNoGain { src_bytes });
+        let _ = std::fs::remove_file(&main.tmp_path);
+        // JPEG second chance (rubric §4 rule 1): when lossy re-encode has no
+        // gain, the lossless DCT transcode often still shaves a few percent
+        // with zero quality risk. Auto mode already tried the transcode as a
+        // candidate, so this only applies to manual mode.
+        match (!auto_mode).then(|| jpeg_lossless_fallback(req.src_path, req.ext, src_bytes)).flatten() {
+            Some(better) => main = better,
+            None => return Ok(EncodeOutcome::SkippedNoGain { src_bytes }),
+        }
     }
 
     let mut companions = Vec::new();
     let mut companion_errors = Vec::new();
+    let companion_gate = auto::effective_gate(
+        req.ext, req.src_path, src_bytes, &decoded, req.opts.target_quality,
+    );
 
     if req.opts.emit_webp && req.ext != ImageExt::Webp {
-        match webp::encode(&decoded, req.opts.webp_quality) {
+        let result = if auto_mode {
+            auto::encode_companion_auto(&decoded, ImageExt::Webp, companion_gate, req.opts)
+        } else {
+            webp::encode(&decoded, req.opts.webp_quality, req.opts.webp_method)
+        };
+        match result {
             Ok(f)  => companions.push(f),
             Err(e) => companion_errors.push(CompanionError { ext: ImageExt::Webp, msg: e.to_string() }),
         }
@@ -143,7 +232,12 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
         progress(78);
     }
     if req.opts.emit_avif && req.ext != ImageExt::Avif {
-        match avif::encode(&decoded, req.opts.avif_quality) {
+        let result = if auto_mode {
+            auto::encode_companion_auto(&decoded, ImageExt::Avif, companion_gate, req.opts)
+        } else {
+            avif::encode(&decoded, req.opts.avif_quality, req.opts.avif_speed)
+        };
+        match result {
             Ok(f)  => companions.push(f),
             Err(e) => companion_errors.push(CompanionError { ext: ImageExt::Avif, msg: e.to_string() }),
         }
@@ -151,6 +245,26 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
     progress(85);
 
     Ok(EncodeOutcome::Encoded(EncodeResult { main, companions, companion_errors }))
+}
+
+/// Try the lossless JPEG transcode and keep it only if it clears the same 2%
+/// gain bar. Skipped for EXIF-rotated sources: the transcode keeps pixels as
+/// stored but strips the orientation tag, which would display wrong.
+fn jpeg_lossless_fallback(src_path: &Path, ext: ImageExt, src_bytes: u64) -> Option<EncodedFile> {
+    if ext != ImageExt::Jpeg {
+        return None;
+    }
+    let bytes = std::fs::read(src_path).ok()?;
+    if decode::read_exif_orientation(&bytes).unwrap_or(1) != 1 {
+        return None;
+    }
+    let out = jpeg::optimize_lossless(&bytes).ok()?;
+    if out.bytes * 100 < src_bytes * 98 {
+        Some(out)
+    } else {
+        let _ = std::fs::remove_file(&out.tmp_path);
+        None
+    }
 }
 
 #[cfg(test)]
@@ -190,6 +304,7 @@ mod tests {
             avif_quality: 60,
             emit_webp: false,
             emit_avif: false,
+            ..EncodeOpts::default()
         }
     }
 
@@ -202,6 +317,7 @@ mod tests {
             avif_quality: 60,
             emit_webp: true,
             emit_avif: true,
+            ..EncodeOpts::default()
         }
     }
 
@@ -270,11 +386,111 @@ mod tests {
     }
 
     #[test]
+    fn old_frontend_opts_json_still_deserializes_to_manual() {
+        // A pre-knob frontend payload: no mode, no knobs, no target —
+        // must come out as manual mode with the previous hardcoded behavior.
+        let json = r#"{
+            "jpegQuality": 75, "pngQuality": 75, "webpQuality": 75,
+            "avifQuality": 50, "emitWebp": false, "emitAvif": false
+        }"#;
+        let opts: EncodeOpts = serde_json::from_str(json).unwrap();
+        assert_eq!(opts.mode, EncodeMode::Manual);
+        assert_eq!(opts.avif_speed, 8);
+        assert_eq!(opts.png_oxipng_level, 4);
+        assert_eq!(opts.webp_method, 4);
+        assert!(opts.jpeg_progressive);
+        assert_eq!(opts.target_quality, 90.0);
+    }
+
+    #[test]
+    fn auto_mode_end_to_end_encodes_png() {
+        let o = EncodeOpts {
+            mode: EncodeMode::Auto,
+            target_quality: 80.0,
+            ..EncodeOpts::default()
+        };
+        let outcome = encode(EncodeRequest {
+            src_path: &fixture("screenshot.png"),
+            ext: ImageExt::Png,
+            opts: &o,
+            progress_cb: None,
+        }).unwrap();
+        match outcome {
+            EncodeOutcome::Encoded(r) => {
+                assert_eq!(r.main.ext, ImageExt::Png);
+                let _ = std::fs::remove_file(&r.main.tmp_path);
+            }
+            EncodeOutcome::SkippedNoGain { .. } => panic!("screenshot.png should compress in auto mode"),
+        }
+    }
+
+    #[test]
+    fn jpeg_lossless_fallback_optimizes_baseline_jpeg() {
+        // Write a baseline JPEG via the image crate (standard Huffman tables,
+        // not optimized) — the DCT transcode should clear the 2% bar.
+        let decoded = decode::decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
+        let rgb: Vec<u8> = decoded.rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+        let tmp = tempfile::Builder::new().suffix(".jpg").tempfile().unwrap();
+        let mut buf = Vec::new();
+        let enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, 85);
+        image::ImageEncoder::write_image(
+            enc, &rgb, decoded.width, decoded.height, image::ExtendedColorType::Rgb8,
+        ).unwrap();
+        std::fs::write(tmp.path(), &buf).unwrap();
+
+        let out = jpeg_lossless_fallback(tmp.path(), ImageExt::Jpeg, buf.len() as u64);
+        let out = out.expect("baseline JPEG should gain ≥2% from lossless transcode");
+        assert!(out.bytes < buf.len() as u64);
+        // and pixels must be identical
+        let before = decode::decode(tmp.path(), ImageExt::Jpeg).unwrap();
+        let after = decode::decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
+        let _ = std::fs::remove_file(&out.tmp_path);
+        assert!(judge::pixels_identical(&before, &after));
+    }
+
+    #[test]
+    fn jpeg_lossless_fallback_skips_exif_rotated_source() {
+        let path = fixture("portrait_exif_rotated.jpg");
+        let src_bytes = std::fs::metadata(&path).unwrap().len();
+        assert!(
+            jpeg_lossless_fallback(&path, ImageExt::Jpeg, src_bytes).is_none(),
+            "EXIF-rotated JPEG must not take the lossless transcode path"
+        );
+    }
+
+    #[test]
+    fn icc_tagged_jpeg_keeps_profile_in_main_and_webp_companion() {
+        let o = EncodeOpts {
+            jpeg_quality: 60, // well under the fixture's q90 so the lossy path wins
+            emit_webp: true,
+            ..opts_no_companions()
+        };
+        let outcome = encode(EncodeRequest {
+            src_path: &fixture("with_icc.jpg"),
+            ext: ImageExt::Jpeg,
+            opts: &o,
+            progress_cb: None,
+        }).unwrap();
+        let EncodeOutcome::Encoded(r) = outcome else { panic!("should encode, not skip") };
+
+        let expected = icc::test_profile(3000);
+        let main = decode::decode(&r.main.tmp_path, ImageExt::Jpeg).unwrap();
+        let companion = &r.companions[0];
+        let webp_out = decode::decode(&companion.tmp_path, ImageExt::Webp).unwrap();
+        let _ = std::fs::remove_file(&r.main.tmp_path);
+        let _ = std::fs::remove_file(&companion.tmp_path);
+
+        assert_eq!(main.icc_profile.as_deref(), Some(expected.as_slice()), "main JPEG");
+        assert_eq!(companion.ext, ImageExt::Webp);
+        assert_eq!(webp_out.icc_profile.as_deref(), Some(expected.as_slice()), "WebP companion");
+    }
+
+    #[test]
     fn webp_source_does_not_emit_webp_companion() {
         // Encode landscape.jpg → WebP first, then re-encode that WebP with emit_webp=true
         // The companion should NOT be emitted (no duplicate-format companions)
         let decoded = decode::decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
-        let webp_encoded = webp::encode(&decoded, 80).unwrap();
+        let webp_encoded = webp::encode(&decoded, 80, 4).unwrap();
 
         let o = EncodeOpts { emit_webp: true, ..opts_no_companions() };
         let outcome = encode(EncodeRequest {

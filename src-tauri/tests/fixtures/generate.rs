@@ -23,10 +23,71 @@ fn main() {
     gen_landscape(&dir);
     gen_portrait_exif_rotated(&dir);
     gen_large_photo(&dir);
+    gen_with_icc(&dir);
 
     eprintln!("All fixtures generated in {}", dir.display());
     eprintln!("Note: large_photo.jpg is gitignored (regenerate on demand).");
-    eprintln!("Note: with_icc.jpg requires manual sourcing (no test needs it currently).");
+    eprintln!("Note: with_icc.avif is macOS-generated (checked in). Source must be small —");
+    eprintln!("      sips tiles larger images into grid AVIFs, which avif-decode rejects:");
+    eprintln!("  sips -s format avif --embedProfile '/System/Library/ColorSync/Profiles/Display P3.icc' with_icc.png --out with_icc.avif");
+}
+
+/// Deterministic, structurally valid ICC blob (size field + `acsp` at offset
+/// 36, zero tags, patterned tail). Mirrors `encoder::icc::test_profile`.
+fn synthetic_icc(len: usize) -> Vec<u8> {
+    assert!(len >= 132);
+    let mut p = vec![0u8; len];
+    p[..4].copy_from_slice(&(len as u32).to_be_bytes());
+    p[36..40].copy_from_slice(b"acsp");
+    for (i, b) in p[132..].iter_mut().enumerate() {
+        *b = (i % 251) as u8;
+    }
+    p
+}
+
+fn gen_with_icc(dir: &PathBuf) {
+    let icc = synthetic_icc(3000);
+    let (w, h) = (320u32, 240u32);
+    let mut rgba = vec![0u8; (w * h * 4) as usize];
+    for y in 0..h {
+        for x in 0..w {
+            let i = ((y * w + x) * 4) as usize;
+            rgba[i] = (x * 255 / w) as u8;
+            rgba[i + 1] = (y * 255 / h) as u8;
+            rgba[i + 2] = 90;
+            rgba[i + 3] = 255;
+        }
+    }
+
+    // with_icc.jpg — mozjpeg APP2 markers
+    let mut compress = mozjpeg::Compress::new(mozjpeg::ColorSpace::JCS_RGB);
+    compress.set_size(w as usize, h as usize);
+    compress.set_quality(90.0);
+    let mut comp = compress.start_compress(Vec::new()).expect("mozjpeg start");
+    // Spec-compliant APP2 ICC marker (1-based seq/count) — the mozjpeg
+    // crate's write_icc_profile numbers chunks 0-based, which compliant
+    // readers reject; mirrors encoder::icc::jpeg_app2_segments
+    let mut app2 = b"ICC_PROFILE\0\x01\x01".to_vec();
+    app2.extend_from_slice(&icc);
+    comp.write_marker(mozjpeg::Marker::APP(2), &app2);
+    let rgb: Vec<u8> = rgba.chunks_exact(4).flat_map(|p| [p[0], p[1], p[2]]).collect();
+    comp.write_scanlines(&rgb).expect("mozjpeg scanlines");
+    let jpeg_bytes = comp.finish().expect("mozjpeg finish");
+    fs::write(dir.join("with_icc.jpg"), &jpeg_bytes).expect("with_icc.jpg");
+    eprintln!("  with_icc.jpg (synthetic 3000-byte ICC in APP2)");
+
+    // with_icc.png — iCCP chunk
+    let mut png_bytes = Vec::new();
+    {
+        use image::ImageEncoder;
+        let mut encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
+        encoder.set_icc_profile(icc.clone()).expect("png icc");
+        encoder
+            .write_image(&rgba, w, h, image::ExtendedColorType::Rgba8)
+            .expect("png encode");
+    }
+    fs::write(dir.join("with_icc.png"), &png_bytes).expect("with_icc.png");
+    eprintln!("  with_icc.png (synthetic 3000-byte ICC in iCCP)");
 }
 
 fn gen_screenshot(dir: &PathBuf) {

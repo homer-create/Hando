@@ -7,6 +7,7 @@ fixtures/
 # Re-include test fixtures for the Rust encoder (large_photo.jpg stays excluded per src-tauri/.gitignore)
 !src-tauri/tests/fixtures/
 !src-tauri/tests/fixtures/**
+docs/calibration/
 .superpowers/
 .DS_Store
 *.log
