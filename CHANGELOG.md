@@ -34,6 +34,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **JPEG 無損轉碼** — `encoder/jpeg.rs::optimize_lossless()`：jpegtran -optimize -progressive 等價的 DCT 係數轉碼（mozjpeg-sys FFI），像素 bit-identical、零畫質風險，保留 ICC（APP2）；EXIF 旋轉來源自動跳過（轉碼會剝 orientation tag）。已接進 encode 流程：JPEG 有損重壓省不到 2% 時改試無損轉碼當第二機會，原本被 skip 的高壓 JPEG 現在常能免費再省幾 %
 - **docs/rubric.md** — AI 優化 loop 用的驗收 rubric；複查後改寫為「施工藍圖」格式：新增 §0.5 現況盤點（標明 ssimulacra2 / bench harness / JPEG 無損轉碼皆為 TODO）、比較基準改為「基準圖」（套用 orientation、剝除 metadata 後的 raw，修正 EXIF 旋轉圖會被冤枉淘汰的邏輯 bug）、移除未支援的 JXL、§8 施工順序含自動品質模式（quality-targeted encoding）的產品方向
 
+### Known limitations
+- **jpg-as-png（PNG 偽裝 JPEG）可能被當 A 類有損壓** — blockiness 指紋 1.16 未達觸發門檻 1.25，本批實測結果可接受（88.2% 省幅、過門檻），屬 rubric §1 第二道防線的已知極限；門檻調整待下輪 loop 收
+
 ---
 
 ## [0.1.1] — 2026-04-27
