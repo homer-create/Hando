@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [Unreleased]
+## [0.2.0] — 2026-06-11
 
 ### Changed
 - **2MP+ 大圖的 auto 模式旋鈕守門** — AVIF 搜尋速度起手抬到 max(使用者值, 9)：實測時間砍半（realphoto avif@85 3063ms→1579ms）、體積只多 ~6%；PNG 候選的 oxipng 壓到 min(使用者值, 2)：level 4 在 2MP 照片級 PNG 單發 3.7s，乘上搜尋發數會把單張時間撐爆。manual 模式不受影響（單發、使用者明示旋鈕）
@@ -128,4 +128,5 @@ Initial Tauri desktop app. Encoding handled by a bundled Node sidecar process (`
 
 ---
 
+[0.2.0]: https://github.com/homershie/Hando/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/homershie/Hando/compare/v0.1.0...v0.1.1
