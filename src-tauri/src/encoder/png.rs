@@ -6,16 +6,17 @@ use image::ImageEncoder;
 use std::io::Write;
 use tempfile::NamedTempFile;
 
-pub fn encode(decoded: &DecodedImage, quality: u32) -> Result<EncodedFile, EncodeError> {
+pub fn encode(decoded: &DecodedImage, quality: u32, oxipng_level: u8) -> Result<EncodedFile, EncodeError> {
     let q = quality.clamp(1, 100);
 
+    let icc = decoded.icc_profile.as_deref().filter(|p| !p.is_empty());
     let png_bytes = if q < 100 {
-        quantize_to_png(decoded, q as u8)?
+        quantize_to_png(decoded, q as u8, icc)?
     } else {
-        encode_truecolor_png(decoded)?
+        encode_rgba_to_png_bytes(&decoded.rgba, decoded.width, decoded.height, icc)?
     };
 
-    let opts = oxipng::Options::from_preset(2);
+    let opts = oxipng::Options::from_preset(oxipng_level.min(6));
     let optimized = oxipng::optimize_from_memory(&png_bytes, &opts)
         .map_err(|e| EncodeError::Encode(format!("oxipng: {e}")))?;
 
@@ -28,7 +29,7 @@ pub fn encode(decoded: &DecodedImage, quality: u32) -> Result<EncodedFile, Encod
     Ok(EncodedFile { ext: ImageExt::Png, tmp_path: path, bytes: len })
 }
 
-fn quantize_to_png(decoded: &DecodedImage, quality: u8) -> Result<Vec<u8>, EncodeError> {
+fn quantize_to_png(decoded: &DecodedImage, quality: u8, icc: Option<&[u8]>) -> Result<Vec<u8>, EncodeError> {
     let mut attr = imagequant::Attributes::new();
     attr.set_quality(0, quality)
         .map_err(|e| EncodeError::Encode(format!("imagequant quality: {e}")))?;
@@ -52,20 +53,21 @@ fn quantize_to_png(decoded: &DecodedImage, quality: u8) -> Result<Vec<u8>, Encod
         rgba.extend_from_slice(&[c.r, c.g, c.b, c.a]);
     }
 
-    encode_rgba_to_png_bytes(&rgba, decoded.width, decoded.height)
+    encode_rgba_to_png_bytes(&rgba, decoded.width, decoded.height, icc)
 }
 
-fn encode_truecolor_png(decoded: &DecodedImage) -> Result<Vec<u8>, EncodeError> {
-    encode_rgba_to_png_bytes(&decoded.rgba, decoded.width, decoded.height)
-}
-
-fn encode_rgba_to_png_bytes(rgba: &[u8], width: u32, height: u32) -> Result<Vec<u8>, EncodeError> {
+fn encode_rgba_to_png_bytes(rgba: &[u8], width: u32, height: u32, icc: Option<&[u8]>) -> Result<Vec<u8>, EncodeError> {
     let mut buf = Vec::new();
-    let encoder = image::codecs::png::PngEncoder::new_with_quality(
+    let mut encoder = image::codecs::png::PngEncoder::new_with_quality(
         &mut buf,
         image::codecs::png::CompressionType::Best,
         image::codecs::png::FilterType::Adaptive,
     );
+    if let Some(profile) = icc {
+        // ICC passthrough → iCCP chunk; oxipng's default options don't strip it
+        encoder.set_icc_profile(profile.to_vec())
+            .map_err(|e| EncodeError::Encode(format!("png icc: {e}")))?;
+    }
     encoder.write_image(rgba, width, height, image::ExtendedColorType::Rgba8)
         .map_err(|e| EncodeError::Encode(format!("png encode: {e}")))?;
     Ok(buf)
@@ -86,22 +88,39 @@ mod tests {
     fn encodes_png_smaller_than_input_via_quantization() {
         let decoded = decode(&fixture("screenshot.png"), ImageExt::Png).unwrap();
         let src_bytes = std::fs::metadata(fixture("screenshot.png")).unwrap().len();
-        let out = encode(&decoded, 80).unwrap();
+        let out = encode(&decoded, 80, 2).unwrap();
         assert!(out.bytes < src_bytes, "out {} should be < src {}", out.bytes, src_bytes);
     }
 
     #[test]
     fn quality_100_lossless_mode_still_produces_valid_png() {
         let decoded = decode(&fixture("transparent.png"), ImageExt::Png).unwrap();
-        let out = encode(&decoded, 100).unwrap();
+        let out = encode(&decoded, 100, 2).unwrap();
         assert!(out.tmp_path.exists());
         assert!(out.bytes > 0);
     }
 
     #[test]
+    fn icc_profile_roundtrips_through_quantized_and_lossless_encode() {
+        let mut decoded = decode(&fixture("screenshot.png"), ImageExt::Png).unwrap();
+        let profile = crate::encoder::icc::test_profile(3000);
+        decoded.icc_profile = Some(profile.clone());
+        for q in [80u32, 100] {
+            let out = encode(&decoded, q, 2).unwrap();
+            let back = decode(&out.tmp_path, ImageExt::Png).unwrap();
+            let _ = std::fs::remove_file(&out.tmp_path);
+            assert_eq!(
+                back.icc_profile.as_deref(),
+                Some(profile.as_slice()),
+                "q{q}: iCCP must survive the encode (and oxipng)"
+            );
+        }
+    }
+
+    #[test]
     fn preserves_alpha_channel() {
         let decoded = decode(&fixture("transparent.png"), ImageExt::Png).unwrap();
-        let out = encode(&decoded, 80).unwrap();
+        let out = encode(&decoded, 80, 2).unwrap();
         let re = decode(&out.tmp_path, ImageExt::Png).unwrap();
         let has_transparency = re.rgba.chunks_exact(4).any(|p| p[3] < 255);
         assert!(has_transparency, "alpha channel should survive encode");

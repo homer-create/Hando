@@ -4,13 +4,30 @@ import { Store } from '@tauri-apps/plugin-store';
 import { setLocale, t, type LanguageSetting } from '../i18n';
 import { setThemePref, type ThemePref } from './theme';
 
+export type EncodeMode = 'auto' | 'manual';
+export type QualityPreset = 'lossless' | 'balanced' | 'aggressive';
+
+/** ssimulacra2 target S per preset — provisional values pending human
+ *  calibration, see docs/calibration.md */
+export const PRESET_TARGETS: Record<QualityPreset, number> = {
+  lossless: 90,
+  balanced: 80,
+  aggressive: 70,
+};
+
 export interface Settings {
+  mode: EncodeMode;
+  preset: QualityPreset;
   jpegQuality: number;
   pngQuality: number;
   webpQuality: number;
   avifQuality: number;
   emitWebp: boolean;
   emitAvif: boolean;
+  avifSpeed: number;       // ravif 1 (smallest) – 10 (fastest)
+  pngOxipngLevel: number;  // oxipng preset 0–6
+  webpMethod: number;      // libwebp method 0 (fastest) – 6 (smallest)
+  jpegProgressive: boolean;
   moveOriginalsToTrash: boolean;
   concurrency: number;
   language: LanguageSetting;
@@ -18,12 +35,18 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  mode: 'auto',
+  preset: 'lossless',
   jpegQuality: 75,
   pngQuality: 75,
   webpQuality: 75,
   avifQuality: 50,
   emitWebp: false,
   emitAvif: false,
+  avifSpeed: 8,
+  pngOxipngLevel: 4,
+  webpMethod: 4,
+  jpegProgressive: true,
   moveOriginalsToTrash: true,
   concurrency: 4,
   language: 'auto',
@@ -89,14 +112,37 @@ export function openSettingsPanel() {
         <option value="es"${current.language === 'es' ? ' selected' : ''}>Español</option>
         <option value="pt"${current.language === 'pt' ? ' selected' : ''}>Português</option>
       </select>
-      <label>${t('settings.jpegQuality')} <span id="v-jpeg">${current.jpegQuality}</span></label>
-      <input type="range" min="1" max="100" id="jpeg" value="${current.jpegQuality}" />
-      <label>${t('settings.pngQuality')} <span id="v-png">${current.pngQuality}</span></label>
-      <input type="range" min="1" max="100" id="png" value="${current.pngQuality}" />
-      <label>${t('settings.webpQuality')} <span id="v-webp">${current.webpQuality}</span></label>
-      <input type="range" min="1" max="100" id="webp" value="${current.webpQuality}" />
-      <label>${t('settings.avifQuality')} <span id="v-avif">${current.avifQuality}</span></label>
-      <input type="range" min="1" max="100" id="avif" value="${current.avifQuality}" />
+      <label>${t('settings.mode')}</label>
+      <div class="theme-seg" id="mode-seg">
+        <button class="seg-btn${current.mode === 'auto' ? ' active' : ''}" data-value="auto">${t('settings.modeAuto')}</button>
+        <button class="seg-btn${current.mode === 'manual' ? ' active' : ''}" data-value="manual">${t('settings.modeManual')}</button>
+      </div>
+      <div id="auto-section" style="display:${current.mode === 'auto' ? '' : 'none'}">
+        <label>${t('settings.preset')}</label>
+        <div class="theme-seg" id="preset-seg">
+          <button class="seg-btn${current.preset === 'lossless' ? ' active' : ''}" data-value="lossless">${t('settings.presetLossless')}</button>
+          <button class="seg-btn${current.preset === 'balanced' ? ' active' : ''}" data-value="balanced">${t('settings.presetBalanced')}</button>
+          <button class="seg-btn${current.preset === 'aggressive' ? ' active' : ''}" data-value="aggressive">${t('settings.presetAggressive')}</button>
+        </div>
+      </div>
+      <div id="manual-section" style="display:${current.mode === 'manual' ? '' : 'none'}">
+        <label>${t('settings.jpegQuality')} <span id="v-jpeg">${current.jpegQuality}</span></label>
+        <input type="range" min="1" max="100" id="jpeg" value="${current.jpegQuality}" />
+        <label>${t('settings.pngQuality')} <span id="v-png">${current.pngQuality}</span></label>
+        <input type="range" min="1" max="100" id="png" value="${current.pngQuality}" />
+        <label>${t('settings.webpQuality')} <span id="v-webp">${current.webpQuality}</span></label>
+        <input type="range" min="1" max="100" id="webp" value="${current.webpQuality}" />
+        <label>${t('settings.avifQuality')} <span id="v-avif">${current.avifQuality}</span></label>
+        <input type="range" min="1" max="100" id="avif" value="${current.avifQuality}" />
+      </div>
+      <label>${t('settings.advanced')}</label>
+      <label>${t('settings.avifSpeed')} <span id="v-avifSpeed">${current.avifSpeed}</span></label>
+      <input type="range" min="1" max="10" id="avifSpeed" value="${current.avifSpeed}" />
+      <label>${t('settings.oxipngLevel')} <span id="v-oxipng">${current.pngOxipngLevel}</span></label>
+      <input type="range" min="0" max="6" id="oxipng" value="${current.pngOxipngLevel}" />
+      <label>${t('settings.webpMethod')} <span id="v-webpMethod">${current.webpMethod}</span></label>
+      <input type="range" min="0" max="6" id="webpMethod" value="${current.webpMethod}" />
+      <label><input type="checkbox" id="jpegProgressive" ${current.jpegProgressive ? 'checked' : ''} /> ${t('settings.jpegProgressive')}</label>
       <label><input type="checkbox" id="emitWebp" ${current.emitWebp ? 'checked' : ''} /> ${t('settings.emitWebp')}</label>
       <label><input type="checkbox" id="emitAvif" ${current.emitAvif ? 'checked' : ''} /> ${t('settings.emitAvif')}</label>
       <label><input type="checkbox" id="trash" ${current.moveOriginalsToTrash ? 'checked' : ''} /> ${t('settings.moveToTrash')}</label>
@@ -124,6 +170,27 @@ export function openSettingsPanel() {
   bindRange('png', 'pngQuality');
   bindRange('webp', 'webpQuality');
   bindRange('avif', 'avifQuality');
+  bindRange('avifSpeed', 'avifSpeed');
+  bindRange('oxipng', 'pngOxipngLevel');
+  bindRange('webpMethod', 'webpMethod');
+
+  const bindSeg = (segId: string, apply: (value: string, btn: HTMLElement) => void) => {
+    (overlay.querySelector(`#${segId}`) as HTMLElement).addEventListener('click', (e) => {
+      const btn = (e.target as HTMLElement).closest('[data-value]') as HTMLElement | null;
+      if (!btn) return;
+      apply(btn.dataset.value!, btn);
+      btn.parentElement!.querySelectorAll('.seg-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      saveSettings(current);
+    });
+  };
+  bindSeg('mode-seg', (value) => {
+    current.mode = value as EncodeMode;
+    (overlay.querySelector('#auto-section') as HTMLElement).style.display = value === 'auto' ? '' : 'none';
+    (overlay.querySelector('#manual-section') as HTMLElement).style.display = value === 'manual' ? '' : 'none';
+  });
+  bindSeg('preset-seg', (value) => { current.preset = value as QualityPreset; });
+
+  (overlay.querySelector('#jpegProgressive') as HTMLInputElement).onchange = (e) => { current.jpegProgressive = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#emitWebp') as HTMLInputElement).onchange = (e) => { current.emitWebp = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#emitAvif') as HTMLInputElement).onchange = (e) => { current.emitAvif = (e.target as HTMLInputElement).checked; saveSettings(current); };
   (overlay.querySelector('#trash') as HTMLInputElement).onchange = (e) => { current.moveOriginalsToTrash = (e.target as HTMLInputElement).checked; saveSettings(current); };

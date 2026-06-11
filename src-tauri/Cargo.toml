@@ -48,6 +48,10 @@ kamadak-exif = "0.6"
 num_cpus = "1"
 thiserror = "2"
 tempfile = "3"
+ssimulacra2 = "0.5.1"
+avif-decode = "1"
+mozjpeg-sys = { version = "2.2", features = ["unwinding"] }
+libc = "0.2.186"
 
 [dev-dependencies]
 insta = { version = "1", features = ["json"] }
