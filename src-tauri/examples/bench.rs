@@ -170,6 +170,8 @@ fn calibrate(outdir: &Path) {
     std::fs::create_dir_all(outdir).expect("create outdir");
     let subjects: &[(&str, ImageExt)] = &[
         ("landscape.jpg", ImageExt::Jpeg),
+        ("landscape2.jpg", ImageExt::Jpeg),
+        ("realphoto.png", ImageExt::Png),
         ("screenshot.png", ImageExt::Png),
     ];
     let ladder: &[u32] = &[95, 90, 85, 80, 75, 70, 60, 50];

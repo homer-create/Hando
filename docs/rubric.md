@@ -33,7 +33,8 @@
 | 跳過邏輯 | 省 < 2% 即 `SkippedNoGain`；自動模式下「沒有候選過畫質門檻」也映射到 skip | ✅ 現有 |
 | 多候選機制 | ✅ 自動模式：無損 + 有損候選競爭、通過門檻者取最小（`encoder/auto.rs`）；companion 也走品質搜尋 | ✅ 現有 |
 | metadata | EXIF orientation 套用後 EXIF 全剝；✅ ICC passthrough 已實作（`encoder/icc.rs`）：decode 抽出（JPEG APP2 / PNG iCCP / WebP ICCP / AVIF colr-prof）、encode 重嵌（JPEG APP2 / PNG iCCP / WebP VP8X+ICCP）。**唯一例外：AVIF 輸出** — ravif/avif-serialize 只支援 nclx colr box，無法嵌 ICC，AVIF 輸出（含 companion）仍會丟 profile | ⚠ 部分（剩 AVIF 輸出端） |
-| `S` 校準 | 樣本與暫定值已就緒（90/80/70，`docs/calibration.md`），**等 homer 人眼定案** | ⚠ 人工步驟 |
+| `S` 校準 | ✅ 人眼定案 90/80/70（2026-06-11，homer；可見差異約 s 70–75，`docs/calibration.md`）。實拍照片複核列「後續」 | ✅ 現有 |
+| 偽裝有損偵測 | ✅ `judge.rs::jpeg_blockiness`：JPEG 8×8 格線指紋（小振幅梯度的相位統計，耐裁切），無損容器超標即抬到 B 類門檻（§1 第二道防線）。完整 NR 指標（NIQE/BRISQUE，§4.3 輸出端檢查）仍後置 | ✅ 現有 |
 
 ---
 
@@ -46,7 +47,7 @@
 分類：
 - **A 乾淨來源**：lossless 格式（PNG / 無損 WebP）**且** bpp 高 → 走 §2 / §3，`ssimulacra2 vs 基準圖` 有效。
 - **B 已是有損**：lossy 格式（JPEG / 有損 WebP / AVIF）**或** bpp 低 → 走 §4（世代損失保護）。
-- （選配）**第二道防線**：無參考指標（NIQE / BRISQUE）很差的輸入，即使容器無損也歸 B——擋掉「PNG 其實是從 JPEG 另存」這種藏雜訊的情況。
+- ✅ **第二道防線**（已實作，2026-06-11）：無損容器的像素若帶 JPEG 8×8 格線指紋（`judge.rs::jpeg_blockiness`，相位無關、耐裁切，門檻 1.25），即使容器無損也抬到 B 類門檻 `max(S, 90)`——擋掉「PNG 其實是從 JPEG 另存」這種藏雜訊的情況。已知極限：q≈95+ 相機級 JPEG 另存的 PNG 指紋太弱測不到，但這類來源近乎乾淨，照 A 類處理損失極小。完整 NR 指標（NIQE/BRISQUE）仍後置。
 
 ---
 
@@ -109,7 +110,7 @@
 
 | 參數 | 用途 | 校準法 |
 |---|---|---|
-| `S` | ssimulacra2 畫質下限 | 挑代表圖（**務必含照片＋文字截圖**；fixtures 裡兩種都有），各壓幾個等級，親眼跟原圖並排看，找「開始看得出差」那條線的分數。會取代原始檔的工具建議靠近 **90** |
+| `S` | ssimulacra2 畫質下限 | ✅ 已定案 90/80/70（2026-06-11 人眼並排複核，可見線約 s 70–75；詳見 `docs/calibration.md`）。校準法存檔備查：挑代表圖（**務必含照片＋文字截圖**），各壓幾個等級，親眼跟原圖並排看，找「開始看得出差」那條線的分數 |
 | `T_lossless` / `T_lossy` | 每張圖的時間預算（秒） | 看實際使用情境可接受的等待；注意自動品質模式（§8）會把編碼次數乘 3–5 倍 |
 | `ε` | B 類重壓時可接受的 NIQE 退步量 | 寧小勿大，先抓接近 0 |
 | bpp 分界 | 判 A / B 的低位元門檻 | 照片類約 < 0.5 起跳，視素材調 |
@@ -120,18 +121,18 @@
 
 | 用途 | 選型 | 接入狀態 |
 |---|---|---|
-| 感知畫質 | `ssimulacra2` crate（首選）；`dssim`（Kornel，備選） | ⚠ 未接入 |
-| 無損像素比對 | harness 內直接 decode 後逐 pixel 比（不必外掛 magick） | ⚠ 未接入 |
-| 計時 | harness 內 `std::time::Instant`，多次取中位數；外部驗證可用 `hyperfine` | ⚠ 未接入 |
-| JPEG 無損優化 | mozjpeg 的 DCT 係數路徑（jpegtran 等價）；mozjpeg crate 已在依賴裡 | ⚠ 未接入 |
-| 無參考指標 | NIQE / BRISQUE（B 類第二道防線；Rust 生態選項少，可後置） | ⚠ 未接入 |
+| 感知畫質 | `ssimulacra2` crate（首選）；`dssim`（Kornel，備選） | ✅ `judge.rs` |
+| 無損像素比對 | harness 內直接 decode 後逐 pixel 比（不必外掛 magick） | ✅ `judge.rs::pixels_identical` |
+| 計時 | harness 內 `std::time::Instant`，多次取中位數；外部驗證可用 `hyperfine` | ✅ `examples/bench.rs` |
+| JPEG 無損優化 | mozjpeg 的 DCT 係數路徑（jpegtran 等價）；mozjpeg crate 已在依賴裡 | ✅ `jpeg.rs::optimize_lossless` |
+| 無參考指標 | 輸入端「偽裝有損」改用自製 JPEG 格線指紋（`judge.rs::jpeg_blockiness`，零依賴）✅；NIQE / BRISQUE（§4.3 輸出端檢查）Rust 生態選項少，後置 | ⚠ 部分 |
 
 ---
 
 ## 8. 施工順序（2026-06-11 全部完成 ✅）
 
 1. ✅ **蓋裁判**：`encoder/judge.rs` + `examples/bench.rs`（`sweep` 模式）——每個候選吐 `size / ssimulacra2 / time` 三個數字。
-2. ✅ **校準 `S`**：`bench calibrate` 產出階梯樣本，暫定 90/80/70（`docs/calibration.md`）。**人眼定案仍待 homer**——這步只有人能做。
+2. ✅ **校準 `S`**：`bench calibrate` 產出階梯樣本，90/80/70 已於 2026-06-11 人眼定案（`docs/calibration.md`；可見差異約 s 70–75）。
 3. ✅ **JPEG 無損轉碼路徑**：`optimize_lossless()`，像素 bit-identical 有測試守著。
 4. ✅ **暴露旋鈕**：`avifSpeed` / `pngOxipngLevel` / `webpMethod` / `jpegProgressive`（serde default 向後相容）。
 5. ✅ **parameter golf**：`bench grid` 掃過旋鈕網格，oxipng 預設 2→4 由數據定案（`docs/bench-results.md`）。
@@ -140,8 +141,8 @@
 ### 後續（非 §8 範圍）
 
 - ~~ICC passthrough（重壓路徑）~~ ✅ 已實作（`encoder/icc.rs`）；殘留：AVIF 輸出端（ravif 只支援 nclx，無法嵌 ICC）
-- 真實照片 fixtures + 重跑 `calibrate`，人眼定案 `S`
-- NR 指標（NIQE/BRISQUE）第二道防線
+- 真實照片 fixtures + 重跑 `calibrate`，複核 `S`（合成樣本已人眼定案 90/80/70；實拍素材偏難壓，複核重點是激進檔 70 是否要抬）
+- ~~輸入端第二道防線（偽裝有損偵測）~~ ✅ 已實作（`judge.rs::jpeg_blockiness`，2026-06-11）；殘留：§4.3 輸出端 `NIQE(輸出) ≤ NIQE(輸入) + ε` 仍後置，等實際遇到破圖案例再評估
 - JXL 等新格式評估
 
 ---

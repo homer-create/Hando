@@ -42,6 +42,13 @@ pub fn effective_gate(
         ImageExt::Webp => !webp_is_lossless(src_path).unwrap_or(false),
     };
     if !lossy_source {
+        // Second line of defense (rubric §1): a lossless container whose
+        // pixels carry the JPEG 8×8 grid fingerprint is a re-saved lossy
+        // image — its "clean baseline" is already dirty, so bound generation
+        // loss exactly like a B-class source.
+        if judge::jpeg_blockiness(decoded) >= judge::JPEG_BLOCKINESS_THRESHOLD {
+            return target.max(B_CLASS_MIN_TARGET);
+        }
         return target;
     }
     let bpp = judge::bits_per_pixel(src_bytes, decoded.width, decoded.height);
@@ -296,13 +303,34 @@ mod tests {
     }
 
     #[test]
+    fn gate_is_raised_for_disguised_lossy_png() {
+        // A JPEG re-saved as PNG: lossless container, lossy pixels. The
+        // blockiness gate must demote it to the B-class bound (rubric §1
+        // second line of defense).
+        let clean = decode(&fixture("screenshot.png"), ImageExt::Png).unwrap();
+        let enc = jpeg::encode(&clean, 75, true).unwrap();
+        let disguised = decode(&enc.tmp_path, ImageExt::Jpeg).unwrap();
+        let _ = std::fs::remove_file(&enc.tmp_path);
+
+        let gate = effective_gate(ImageExt::Png, Path::new("vendor.png"), 999_999, &disguised, 70.0);
+        assert_eq!(gate, B_CLASS_MIN_TARGET, "disguised PNG must use the B-class bound");
+
+        let clean_gate = effective_gate(ImageExt::Png, Path::new("clean.png"), 999_999, &clean, 70.0);
+        assert_eq!(clean_gate, 70.0, "genuinely clean PNG keeps the preset target");
+    }
+
+    #[test]
     fn gate_is_raised_for_low_bpp_lossy_sources() {
         let path = fixture("landscape.jpg");
         let baseline = decode(&path, ImageExt::Jpeg).unwrap();
         let src_bytes = std::fs::metadata(&path).unwrap().len();
         let gate = effective_gate(ImageExt::Jpeg, &path, src_bytes, &baseline, 70.0);
         assert_eq!(gate, B_CLASS_MIN_TARGET, "low-bpp lossy source must use the bound");
-        let png_gate = effective_gate(ImageExt::Png, &fixture("screenshot.png"), 999, &baseline, 70.0);
+        // NB: the PNG control must use genuinely clean pixels — passing the
+        // decoded JPEG here would (correctly) trip the blockiness gate.
+        let png_path = fixture("screenshot.png");
+        let png_baseline = decode(&png_path, ImageExt::Png).unwrap();
+        let png_gate = effective_gate(ImageExt::Png, &png_path, 999, &png_baseline, 70.0);
         assert_eq!(png_gate, 70.0, "lossless sources keep the preset target");
     }
 }

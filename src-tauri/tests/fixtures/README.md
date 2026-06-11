@@ -12,6 +12,8 @@
 | `with_icc.jpg` | 320×240 | Synthetic 3000-byte ICC profile in APP2 — ICC passthrough tests |
 | `with_icc.png` | 320×240 | Same synthetic ICC profile in an iCCP chunk |
 | `with_icc.avif` | 320×240 | Real Display P3 profile in a `colr`/`prof` box (macOS-generated, checked in — see note) |
+| `landscape2.jpg` | 1920×1281 | Real photo (camera JPEG, checked in) — `bench calibrate` subject; harder to compress than the synthetic fixtures |
+| `realphoto.png` | 1920×1080 | Real photo in a genuinely clean PNG container (checked in) — `bench calibrate` subject + clean reference for the jpeg-blockiness calibration dump |
 
 Generated with `cargo run --example generate-fixtures --features generate-fixtures` from `src-tauri/`.
 

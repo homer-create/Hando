@@ -1,6 +1,8 @@
 # S 值校準（rubric §6 / §8.2）
 
-> 狀態：**樣本已產出，暫定值已設，等 homer 人眼定案。**
+> 狀態：**已人眼定案（2026-06-11，homer）：90 / 80 / 70 成立。**
+> 觀察：可見差異約從 s ≈ 70–75 開始——90/80 落在「看不出差」這側，70（激進檔）踩在可見線上，符合各檔定位。
+> 本次定案基於合成 fixtures；實拍照片複核仍列待辦（見 rubric「後續」），複核後若要改只動 `PRESET_TARGETS` 與本檔。
 > 產生方式：`cd src-tauri && cargo run --release --example bench -- calibrate ../docs/calibration`
 > 樣本在 `docs/calibration/`（gitignored），檔名格式 `主題_格式_q品質_s分數.副檔名`，與 `*_ORIGINAL.*` 並排看。
 
@@ -37,13 +39,12 @@
 - JPEG 在 q70→q75 之間有個明顯的分數懸崖（77.9 → 89.4）——q75 預設值剛好站在崖上，蠻幸運的。
 - 合成 fixtures 偏「好壓」，真實照片的分數會更低一些；正式校準建議再丟幾張實拍照片進 `tests/fixtures/` 重跑。
 
-## 暫定 preset 值（程式內 `QualityPreset`）
+## 定案 preset 值（程式內 `QualityPreset`）
 
 | Preset | S | 依據 |
 |---|---:|---|
-| 視覺無損（visually lossless） | **90** | ssimulacra2 作者定義的 90+ ≈ 肉眼不可辨；Hando 會取代原始檔，預設要保守 |
-| 平衡（balanced） | **80** | 高品質、細看有極輕微差異 |
-| 激進（aggressive） | **70** | 中高品質，可感知但不破相 |
+| 視覺無損（visually lossless） | **90** | ssimulacra2 作者定義的 90+ ≈ 肉眼不可辨；Hando 會取代原始檔，預設要保守。人眼複核：遠在可見線（~70–75）之上 |
+| 平衡（balanced） | **80** | 高品質；人眼複核：仍在可見線之上，實際看不出差 |
+| 激進（aggressive） | **70** | 中高品質，可感知但不破相；人眼複核：踩在可見線上，符合定位 |
 
-> 這三個數字是 ssimulacra2 公定刻度 + 上表數據的合理落點，**不是**人眼定案值。
-> 人眼複核後若要改，只動 `src/ui/settings.ts` 的 `PRESET_TARGETS` 和本檔。
+> 2026-06-11 由 homer 人眼並排複核定案（合成樣本）。實拍照片複核後若要改，只動 `src/ui/settings.ts` 的 `PRESET_TARGETS` 和本檔。
