@@ -11,6 +11,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **S 值人眼定案** — homer 以 `docs/calibration/` 階梯樣本並排複核，可見差異約從 s ≈ 70–75 開始，三檔 preset（視覺無損 90 / 平衡 80 / 激進 70）維持原值定案；`PRESET_TARGETS` 不變，`docs/calibration.md` 與 `docs/rubric.md` 狀態更新。實拍照片複核仍列待辦（合成 fixtures 偏好壓，重點是激進檔 70 是否要抬）
 
 ### Fixed
+- **ICC 來源的 AVIF 重壓省幅 <10% 改判 skip** — ravif 只支援 nclx，AVIF 輸出必丟 ICC profile；with_icc.avif 實測贏家過 90 門檻卻只省 2.8%，為這點省幅默默丟色彩描述檔等於資料損失（攝影師等級的偏色風險）；現在 main 輸出是 AVIF 且來源帶 ICC 時，省幅門檻（`keep_bar`）從 2% 抬到 10%，不到就 SkippedNoGain 保留原檔
 - **ICC profile passthrough（重壓路徑）** — decode 原本直接丟棄 ICC（`decode.rs` `let icc = None`），廣色域來源（如 iPhone 的 Display P3）重壓後會偏色；新增 `encoder/icc.rs`，decode 端抽出（JPEG APP2 / PNG iCCP / WebP ICCP / AVIF colr-prof box），encode 端重嵌（JPEG APP2 / PNG iCCP / WebP 升級為 VP8X+ICCP container），含 ICC fixtures 與各格式 roundtrip 測試。已知限制：AVIF **輸出**端 ravif/avif-serialize 只支援 nclx，無法嵌 ICC，AVIF 輸出（含 companion）仍會丟 profile（rubric §0.5 已記）
 - **JPEG ICC 寫入避開 mozjpeg crate 的 0-based bug** — mozjpeg 0.10.13 的 `write_icc_profile` 把 APP2 分段編號寫成 0-based（ICC 規範是 1-based），合規讀取器（如 libjpeg-turbo 的 `jpeg_read_icc_profile`）會拒讀；改用自家 `icc::jpeg_app2_segments`（1-based）+ `write_marker`，讀取端則同時容忍 0-based 檔案
 - **JPEG progressive 開關原本是 no-op** — mozjpeg 預設就是 progressive，舊程式的 `set_progressive_mode()` 呼叫並沒有改變任何行為；現在 `jpegProgressive=false` 走 `set_fastest_defaults()`（baseline profile），檔案大 ~3 倍但編碼快 2–9 倍，開關才有真實意義
@@ -18,6 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **AVIF input could not be decoded** — the `image` crate's `avif` feature is encode-only, so dropping an `.avif` file failed at runtime with "format not supported"; AVIF decode now goes through `avif-decode` (bundled libaom, no system dependency), with 8/16-bit and gray/alpha variants normalized to RGBA8
 
 ### Added
+- **bench `eval` / `corpus` 子命令（給 /goal loop 的 verifier 接口）** — `eval <input> <out_ext> <quality> [knob]` 對單一候選吐一行 JSON（src/out bytes、ratio、ssimulacra2、lossless、encode_ms、bpp、dims），decode/encode 失敗或不可能請求（如透明來源輸出 JPEG）回 `"ok":false` 並 exit 1，符合 rubric「一行指令 → 一個數字/exit code」鐵律；`corpus <dir>` 逐張列出 §1 input-gate 訊號（format/bpp/jpeg-blockiness/class_hint A·B），讓 orchestrator 在搜尋前先分流。原本 bench 只有固定網格批次（sweep/grid），無法逐候選驅動
 - **偽裝有損偵測（rubric §1 第二道防線）** — `judge.rs::jpeg_blockiness`：對解碼像素量 JPEG 8×8 格線指紋（只統計小振幅亮度梯度的 8 相位分布，內容邊不干擾、耐裁切，零依賴純 Rust）；自動模式下 PNG／無損 WebP 超過門檻 1.25 即視為「JPEG 另存的偽裝無損」，畫質門檻抬到 B 類的 `max(S, 90)`，廠商提供的二手圖不再被當乾淨原圖重壓。fixtures 實測：乾淨來源 ≤ 1.14、JPEG 史（q60–q92）≥ 1.39；已知極限：q≈95+ 相機級 JPEG 另存測不到（但此類來源近乎乾淨，照 A 類處理損失極小）
 - **裁判（judge）模組** — `encoder/judge.rs`：ssimulacra2 感知畫質評分（基準圖 vs 候選）、無損逐像素比對 `pixels_identical`、輸入閘用的 `bits_per_pixel`；rubric §3 的硬門檻從此可量測
 - **bench harness** — `examples/bench.rs`：對 `tests/fixtures/` 整批跑 候選（格式 × 品質階梯），輸出 rubric 三數字 size / ssimulacra2 / encode-time 的 markdown 表；`calibrate` 子命令產出 §8.2 人眼校準用的品質階梯樣本（檔名含分數）

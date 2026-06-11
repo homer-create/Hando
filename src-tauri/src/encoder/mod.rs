@@ -198,9 +198,8 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
     };
     progress(75);
 
-    // Skip if savings are less than 2% of the source — prevents endless re-compression
-    // of already-optimized files where the encoder finds only marginal improvements.
-    if main.bytes * 100 >= src_bytes * 98 {
+    // Skip when the savings don't justify the cost (bar from `keep_bar`).
+    if main.bytes * 100 >= src_bytes * keep_bar(main.ext, decoded.icc_profile.is_some()) {
         let _ = std::fs::remove_file(&main.tmp_path);
         // JPEG second chance (rubric §4 rule 1): when lossy re-encode has no
         // gain, the lossless DCT transcode often still shaves a few percent
@@ -245,6 +244,15 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
     progress(85);
 
     Ok(EncodeOutcome::Encoded(EncodeResult { main, companions, companion_errors }))
+}
+
+/// Minimum-gain bar: the output must stay under this percentage of the source
+/// or the file is skipped. Baseline: <2% gain is churn, not compression. AVIF
+/// main output additionally drops the ICC profile (ravif is nclx-only, rubric
+/// §0.5), so an ICC-tagged source must clear 10% before that loss is worth it
+/// (docs/goal-learnings.md, with_icc.avif: 2.8% gain is not).
+fn keep_bar(main_ext: ImageExt, has_icc: bool) -> u64 {
+    if main_ext == ImageExt::Avif && has_icc { 90 } else { 98 }
 }
 
 /// Try the lossless JPEG transcode and keep it only if it clears the same 2%
@@ -371,6 +379,39 @@ mod tests {
             progress_cb: None,
         }).unwrap();
         assert!(matches!(outcome, EncodeOutcome::SkippedNoGain { .. }));
+    }
+
+    #[test]
+    fn keep_bar_requires_10_percent_for_icc_avif() {
+        // P0 §1.1: AVIF 主輸出會丟 ICC（ravif 只寫 nclx），帶 ICC 的來源
+        // 要省滿 10% 才值得；其餘維持 2% 的反空轉 bar。
+        assert_eq!(keep_bar(ImageExt::Avif, true), 90);
+        assert_eq!(keep_bar(ImageExt::Avif, false), 98);
+        assert_eq!(keep_bar(ImageExt::Jpeg, true), 98);
+        assert_eq!(keep_bar(ImageExt::Png, true), 98);
+    }
+
+    #[test]
+    fn avif_source_with_icc_and_small_gain_skips() {
+        // P0 §1.1: AVIF 重壓必丟 ICC（ravif 只寫 nclx）。with_icc.avif 的
+        // B2 門檻是 max(S,90)，贏家只省 ~3%（bench 實測 2.8%）——為這點
+        // 省幅丟色彩描述檔不值得，必須 skip 保留原檔。
+        let o = EncodeOpts {
+            mode: EncodeMode::Auto,
+            target_quality: 80.0,
+            ..EncodeOpts::default()
+        };
+        let outcome = encode(EncodeRequest {
+            src_path: &fixture("with_icc.avif"),
+            ext: ImageExt::Avif,
+            opts: &o,
+            progress_cb: None,
+        })
+        .unwrap();
+        assert!(
+            matches!(outcome, EncodeOutcome::SkippedNoGain { .. }),
+            "ICC-tagged AVIF with <10% gain must skip, got {outcome:?}"
+        );
     }
 
     #[test]
