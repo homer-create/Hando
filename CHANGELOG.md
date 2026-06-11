@@ -21,6 +21,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **AVIF input could not be decoded** — the `image` crate's `avif` feature is encode-only, so dropping an `.avif` file failed at runtime with "format not supported"; AVIF decode now goes through `avif-decode` (bundled libaom, no system dependency), with 8/16-bit and gray/alpha variants normalized to RGBA8
 
 ### Added
+- **三 preset 發版前 smoke test** — `auto_mode_presets_smoke`（`#[ignore]`，發版前 `cargo test -- --ignored` 跑）：S=70/80/90 三檔對 A 類 / B1 / B2 / ICC 代表 fixtures 跑 auto 搜尋，結果只能是「過 effective gate 的 Encoded」或 skip；補上先前只驗過 S=80 的缺口
 - **bench `eval` / `corpus` 子命令（給 /goal loop 的 verifier 接口）** — `eval <input> <out_ext> <quality> [knob]` 對單一候選吐一行 JSON（src/out bytes、ratio、ssimulacra2、lossless、encode_ms、bpp、dims），decode/encode 失敗或不可能請求（如透明來源輸出 JPEG）回 `"ok":false` 並 exit 1，符合 rubric「一行指令 → 一個數字/exit code」鐵律；`corpus <dir>` 逐張列出 §1 input-gate 訊號（format/bpp/jpeg-blockiness/class_hint A·B），讓 orchestrator 在搜尋前先分流。原本 bench 只有固定網格批次（sweep/grid），無法逐候選驅動
 - **偽裝有損偵測（rubric §1 第二道防線）** — `judge.rs::jpeg_blockiness`：對解碼像素量 JPEG 8×8 格線指紋（只統計小振幅亮度梯度的 8 相位分布，內容邊不干擾、耐裁切，零依賴純 Rust）；自動模式下 PNG／無損 WebP 超過門檻 1.25 即視為「JPEG 另存的偽裝無損」，畫質門檻抬到 B 類的 `max(S, 90)`，廠商提供的二手圖不再被當乾淨原圖重壓。fixtures 實測：乾淨來源 ≤ 1.14、JPEG 史（q60–q92）≥ 1.39；已知極限：q≈95+ 相機級 JPEG 另存測不到（但此類來源近乎乾淨，照 A 類處理損失極小）
 - **裁判（judge）模組** — `encoder/judge.rs`：ssimulacra2 感知畫質評分（基準圖 vs 候選）、無損逐像素比對 `pixels_identical`、輸入閘用的 `bits_per_pixel`；rubric §3 的硬門檻從此可量測

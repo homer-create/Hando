@@ -409,6 +409,38 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "release check: ~minutes of encode+judge; run with --ignored before shipping"]
+    fn auto_mode_presets_smoke() {
+        // §3 發版前驗證：三檔 preset（90 視覺無損 / 80 平衡 / 70 激進）對代表性
+        // 來源只能是「過 effective gate 的 Encoded」或「skip」，不准 error。
+        for target in [70.0, 80.0, 90.0] {
+            for (name, ext) in [
+                ("screenshot.png", ImageExt::Png),  // A 類合成 UI
+                ("transparent.png", ImageExt::Png), // A 類含 alpha
+                ("landscape2.jpg", ImageExt::Jpeg), // B1 真實相機 JPEG
+                ("landscape.jpg", ImageExt::Jpeg),  // B2 低 bpp → 只走轉碼
+                ("with_icc.jpg", ImageExt::Jpeg),   // B2 + ICC
+            ] {
+                let path = fixture(name);
+                let baseline = decode(&path, ext).unwrap();
+                let src_bytes = std::fs::metadata(&path).unwrap().len();
+                let gate = effective_gate(ext, &path, src_bytes, &baseline, target);
+                let o = EncodeOpts { target_quality: target, ..opts() };
+                match encode_auto(&path, ext, &baseline, &o, src_bytes).unwrap() {
+                    Some(out) => {
+                        let dec = decode(&out.tmp_path, ext).unwrap();
+                        let ok = judge::pixels_identical(&baseline, &dec)
+                            || judge::ssimulacra2_score(&baseline, &dec).unwrap() >= gate;
+                        let _ = std::fs::remove_file(&out.tmp_path);
+                        assert!(ok, "{name} @ S={target}: winner must clear gate {gate}");
+                    }
+                    None => {} // skip 是合法結果（沒有候選過得了門檻）
+                }
+            }
+        }
+    }
+
+    #[test]
     fn gate_is_raised_for_low_bpp_lossy_sources() {
         let path = fixture("landscape.jpg");
         let baseline = decode(&path, ImageExt::Jpeg).unwrap();
