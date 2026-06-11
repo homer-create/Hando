@@ -22,6 +22,13 @@ const B_CLASS_MIN_TARGET: f64 = 90.0;
 /// camera JPEGs sit around 2–5 bpp, web-grade re-compressions below ~1.
 const B1_BPP_THRESHOLD: f64 = 1.0;
 
+/// At/above this bits-per-pixel a lossy re-encode is futile (2026-06-11 goal
+/// loop, large_photo bpp≈10): ssimulacra2 punishes grain removal so hard that
+/// no quality clears any gate (q85 scored 16.1 vs target 80) while each probe
+/// on such poorly-compressed pixels costs seconds. Camera JPEGs sit at
+/// 2–5 bpp, so they stay on the normal B1 path.
+const LOSSY_FUTILE_BPP: f64 = 8.0;
+
 /// Quality search granularity. Searching on a lattice of step 4 keeps the
 /// binary search to ~5 encode+judge rounds; differences under 4 quality
 /// points are visually negligible.
@@ -107,7 +114,13 @@ pub fn encode_auto(
             let transcoded = if upright { jpeg::optimize_lossless(&bytes).ok() } else { None };
 
             let bpp = judge::bits_per_pixel(src_bytes, decoded.width, decoded.height);
-            let lossy = if bpp >= B1_BPP_THRESHOLD || !upright {
+            let lossy = if bpp >= LOSSY_FUTILE_BPP {
+                // Grain-heavy, barely-compressed source: every lossy probe
+                // fails the gate and burns seconds — transcode only. For a
+                // rotated source this leaves no candidate at all; the caller
+                // reports SkippedNoGain and the original is preserved.
+                None
+            } else if bpp >= B1_BPP_THRESHOLD || !upright {
                 // B1 (near-clean) — or rotated B2 where the transcode is
                 // unavailable and a tightly-gated re-encode is the only option
                 search_min_quality(decoded, gate, ImageExt::Jpeg, |q| {
@@ -270,9 +283,34 @@ mod tests {
     }
 
     #[test]
-    fn auto_high_bpp_jpeg_searches_lossy_and_clears_gate() {
-        // Build a high-bpp source: random noise compresses terribly, so a
-        // q95 JPEG of it sits well above the B1 threshold.
+    fn auto_b1_jpeg_searches_lossy_and_clears_gate() {
+        // landscape2.jpg：真實相機 JPEG，bpp ≈ 2.6 → B1，preset 門檻直接適用，
+        // 有損搜尋必須找到過門檻的候選。
+        let path = fixture("landscape2.jpg");
+        let baseline = decode(&path, ImageExt::Jpeg).unwrap();
+        let src_bytes = std::fs::metadata(&path).unwrap().len();
+        let bpp = judge::bits_per_pixel(src_bytes, baseline.width, baseline.height);
+        assert!(
+            (B1_BPP_THRESHOLD..LOSSY_FUTILE_BPP).contains(&bpp),
+            "fixture assumption: B1-range bpp, got {bpp}"
+        );
+
+        let o = EncodeOpts { target_quality: 70.0, ..opts() };
+        let out = encode_auto(&path, ImageExt::Jpeg, &baseline, &o, src_bytes)
+            .unwrap()
+            .expect("B1 camera JPEG should find a passing candidate");
+        let dec = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
+        let identical = judge::pixels_identical(&baseline, &dec);
+        let score = judge::ssimulacra2_score(&baseline, &dec).unwrap();
+        let _ = std::fs::remove_file(&out.tmp_path);
+        assert!(identical || score >= 70.0, "winner must clear the gate, got {score:.2}");
+    }
+
+    #[test]
+    fn auto_futile_bpp_jpeg_skips_lossy_search_and_transcodes() {
+        // 顆粒/雜訊型超高 bpp 來源：有損候選全滅（large_photo q85 只得 16.1 分）
+        // 且每發數秒——唯一出路是無損 DCT 轉碼，輸出像素必須與基準圖相同。
+        // 合成 q100 噪點 JPEG 重現 large_photo 的 bpp 級別（fixture 是 gitignored）。
         let (w, h) = (256u32, 256u32);
         let mut state = 0x12345678u32;
         let rgba: Vec<u8> = (0..w * h * 4)
@@ -282,24 +320,23 @@ mod tests {
             })
             .collect();
         let noise = DecodedImage { rgba, width: w, height: h, icc_profile: None };
-        let q95 = jpeg::encode(&noise, 95, true).unwrap();
+        let q100 = jpeg::encode(&noise, 100, true).unwrap();
         let tmp = tempfile::Builder::new().suffix(".jpg").tempfile().unwrap();
-        std::fs::copy(&q95.tmp_path, tmp.path()).unwrap();
-        let _ = std::fs::remove_file(&q95.tmp_path);
+        std::fs::copy(&q100.tmp_path, tmp.path()).unwrap();
+        let _ = std::fs::remove_file(&q100.tmp_path);
 
         let baseline = decode(tmp.path(), ImageExt::Jpeg).unwrap();
         let src_bytes = std::fs::metadata(tmp.path()).unwrap().len();
         let bpp = judge::bits_per_pixel(src_bytes, w, h);
-        assert!(bpp >= B1_BPP_THRESHOLD, "noise q95 should be high bpp, got {bpp}");
+        assert!(bpp >= LOSSY_FUTILE_BPP, "q100 noise should be futile-high bpp, got {bpp}");
 
-        let o = EncodeOpts { target_quality: 70.0, ..opts() };
-        let out = encode_auto(tmp.path(), ImageExt::Jpeg, &baseline, &o, src_bytes)
+        let out = encode_auto(tmp.path(), ImageExt::Jpeg, &baseline, &opts(), src_bytes)
             .unwrap()
-            .expect("high-bpp JPEG should find a passing candidate");
+            .expect("lossless transcode should be available");
         let dec = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
-        let score = judge::ssimulacra2_score(&baseline, &dec).unwrap();
+        let identical = judge::pixels_identical(&baseline, &dec);
         let _ = std::fs::remove_file(&out.tmp_path);
-        assert!(score >= 70.0, "winner must clear the preset gate, got {score:.2}");
+        assert!(identical, "futile-bpp JPEG must come from the lossless transcode");
     }
 
     #[test]
