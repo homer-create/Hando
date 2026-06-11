@@ -12,6 +12,7 @@
 
 use desktop_lib::encoder::{avif, decode, jpeg, judge, png, webp, ImageExt};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::time::Instant;
 
 /// One encode with explicit knobs, decoded + judged. Used by the grid mode.
@@ -173,6 +174,9 @@ fn calibrate(outdir: &Path) {
         ("landscape2.jpg", ImageExt::Jpeg),
         ("realphoto.png", ImageExt::Png),
         ("screenshot.png", ImageExt::Png),
+        ("web-section.png", ImageExt::Png),
+        ("jpg-as-png.png", ImageExt::Png),
+        ("compressed.jpg", ImageExt::Jpeg),
     ];
     let ladder: &[u32] = &[95, 90, 85, 80, 75, 70, 60, 50];
 
@@ -266,9 +270,199 @@ fn grid() {
     }
 }
 
+/// Minimal JSON string escaping for the `input`/`error`/`path` fields.
+fn esc(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Parse a file's format from its extension (the *source* gate for §1).
+fn ext_of(path: &Path) -> Result<ImageExt, String> {
+    let s = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .ok_or_else(|| format!("no extension: {}", path.display()))?;
+    ImageExt::from_str(s).map_err(|e| e.to_string())
+}
+
+/// §verifier — score ONE candidate (format × quality × knob) against a source
+/// image and print the rubric numbers as a single JSON line. Exit 0 on a clean
+/// measurement, exit 1 (with `"ok":false`) on decode/encode failure or an
+/// impossible request (e.g. JPEG output for a transparent source). The loop's
+/// orchestrator proposes the candidate; this is the fresh-context verifier.
+///
+///   eval <input> <out_ext> <quality> [knob]
+///     knob: jpeg→progressive(0|1, dflt 1) png→oxipng(0..=6, dflt 4)
+///           webp→method(0..=6, dflt 4)     avif→speed(1..=10, dflt 8)
+fn eval(args: &[String]) -> i32 {
+    let usage = "usage: eval <input> <out_ext:jpg|png|webp|avif> <quality> [knob]";
+    let input = match args.first() {
+        Some(p) => PathBuf::from(p),
+        None => {
+            eprintln!("{usage}");
+            return 1;
+        }
+    };
+    let fail = |reason: String| -> i32 {
+        println!(
+            "{{\"input\":\"{}\",\"ok\":false,\"error\":\"{}\"}}",
+            esc(&input.display().to_string()),
+            esc(&reason)
+        );
+        1
+    };
+
+    let out_ext = match args.get(1).map(|s| ImageExt::from_str(s)) {
+        Some(Ok(e)) => e,
+        _ => return fail(format!("bad/missing out_ext. {usage}")),
+    };
+    let quality: u32 = match args.get(2).and_then(|s| s.parse().ok()) {
+        Some(q) => q,
+        None => return fail(format!("bad/missing quality. {usage}")),
+    };
+    // Knob: explicit if given, else the encoder default for that format.
+    let knob: u32 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(match out_ext {
+        ImageExt::Jpeg => 1, // progressive on
+        ImageExt::Png => 4,  // oxipng level
+        ImageExt::Webp => 4, // method
+        ImageExt::Avif => 8, // speed
+    });
+
+    let src_ext = match ext_of(&input) {
+        Ok(e) => e,
+        Err(e) => return fail(e),
+    };
+    let src_bytes = std::fs::metadata(&input).map(|m| m.len()).unwrap_or(0);
+    let baseline = match decode::decode(&input, src_ext) {
+        Ok(b) => b,
+        Err(e) => return fail(format!("decode: {e}")),
+    };
+    let (w, h) = (baseline.width, baseline.height);
+    let bpp = judge::bits_per_pixel(src_bytes, w, h);
+
+    if out_ext == ImageExt::Jpeg && baseline.rgba.chunks_exact(4).any(|p| p[3] < 255) {
+        return fail("jpeg output cannot carry alpha".into());
+    }
+
+    let t0 = Instant::now();
+    let encoded = match out_ext {
+        ImageExt::Jpeg => jpeg::encode(&baseline, quality, knob != 0),
+        ImageExt::Png => png::encode(&baseline, quality, knob as u8),
+        ImageExt::Webp => webp::encode(&baseline, quality, knob as u8),
+        ImageExt::Avif => avif::encode(&baseline, quality, knob as u8),
+    };
+    let out = match encoded {
+        Ok(o) => o,
+        Err(e) => return fail(format!("encode: {e}")),
+    };
+    let encode_ms = t0.elapsed().as_millis();
+
+    let decoded = match decode::decode(&out.tmp_path, out_ext) {
+        Ok(d) => d,
+        Err(e) => {
+            let _ = std::fs::remove_file(&out.tmp_path);
+            return fail(format!("re-decode: {e}"));
+        }
+    };
+    let lossless = judge::pixels_identical(&baseline, &decoded);
+    let score = if lossless {
+        100.0
+    } else {
+        match judge::ssimulacra2_score(&baseline, &decoded) {
+            Ok(s) => s,
+            Err(e) => {
+                let _ = std::fs::remove_file(&out.tmp_path);
+                return fail(format!("ssimulacra2: {e}"));
+            }
+        }
+    };
+    let out_bytes = out.bytes;
+    let _ = std::fs::remove_file(&out.tmp_path);
+
+    let ratio = 1.0 - (out_bytes as f64 / src_bytes.max(1) as f64);
+    println!(
+        "{{\"input\":\"{}\",\"out\":\"{}\",\"quality\":{},\"knob\":{},\
+\"src_bytes\":{},\"out_bytes\":{},\"ratio\":{:.4},\"width\":{},\"height\":{},\
+\"bpp\":{:.4},\"ssimulacra2\":{:.2},\"lossless\":{},\"encode_ms\":{},\"ok\":true}}",
+        esc(&input.display().to_string()),
+        out_ext.dotted().trim_start_matches('.'),
+        quality,
+        knob,
+        src_bytes,
+        out_bytes,
+        ratio,
+        w,
+        h,
+        bpp,
+        score,
+        lossless,
+        encode_ms,
+    );
+    0
+}
+
+/// Enumerate a corpus directory: one JSON line per supported image carrying the
+/// §1 input-gate signals (format, dims, bpp, jpeg 8×8 blockiness). `class_hint`
+/// is ADVISORY — the loop + rubric make the final A/B call. Lets the
+/// orchestrator route each image to the right rubric branch before searching.
+fn corpus(dir: &Path) {
+    let mut entries: Vec<PathBuf> = match std::fs::read_dir(dir) {
+        Ok(rd) => rd.filter_map(|e| e.ok().map(|e| e.path())).collect(),
+        Err(e) => {
+            eprintln!("read_dir {}: {e}", dir.display());
+            return;
+        }
+    };
+    entries.sort();
+
+    for path in entries {
+        let Ok(src_ext) = ext_of(&path) else { continue }; // skip non-images
+        let bytes = std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0);
+        let baseline = match decode::decode(&path, src_ext) {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("skip {}: {e}", path.display());
+                continue;
+            }
+        };
+        let bpp = judge::bits_per_pixel(bytes, baseline.width, baseline.height);
+        let blockiness = judge::jpeg_blockiness(&baseline);
+        // §1: lossy format → B; lossless container with a JPEG grid fingerprint
+        // (blockiness ≥ 1.25) → B (disguised lossy); otherwise A.
+        let lossy_format = matches!(src_ext, ImageExt::Jpeg | ImageExt::Avif);
+        let (class_hint, reason) = if lossy_format {
+            ("B", "lossy format")
+        } else if blockiness >= 1.25 {
+            ("B", "disguised lossy (jpeg grid)")
+        } else {
+            ("A", "lossless, clean")
+        };
+        println!(
+            "{{\"path\":\"{}\",\"format\":\"{}\",\"width\":{},\"height\":{},\
+\"bytes\":{},\"bpp\":{:.4},\"blockiness\":{:.2},\"class_hint\":\"{}\",\"reason\":\"{}\"}}",
+            esc(&path.display().to_string()),
+            src_ext.dotted().trim_start_matches('.'),
+            baseline.width,
+            baseline.height,
+            bytes,
+            bpp,
+            blockiness,
+            class_hint,
+            reason,
+        );
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("eval") => std::process::exit(eval(&args[1..])),
+        Some("corpus") => {
+            let dir = args
+                .get(1)
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("tests/fixtures"));
+            corpus(&dir);
+        }
         Some("calibrate") => {
             let dir = args
                 .get(1)
