@@ -11,15 +11,15 @@
     "dist": "tauri build && node scripts/build-dist.mjs"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.0",
     "@tauri-apps/plugin-fs": "^2.5.0",
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.2"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "vite": "^8.0.11",
-    "typescript": "~6.0.3"
+    "@tauri-apps/cli": "^2.11.2",
+    "typescript": "~6.0.3",
+    "vite": "^8.0.11"
   }
 }
