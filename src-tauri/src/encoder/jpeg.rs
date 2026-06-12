@@ -35,6 +35,18 @@ pub fn encode(decoded: &DecodedImage, quality: u32, progressive: bool) -> Result
         }
     }
 
+    // EXIF passthrough (opt-in via keep_metadata, cleared upstream otherwise).
+    // EXIF must fit a single APP1 marker (≤65533 bytes of data); larger blobs
+    // are thumbnail/MakerNote bloat and get dropped rather than truncated.
+    if let Some(exif) = decoded.exif.as_deref().filter(|e| !e.is_empty()) {
+        if exif.len() + super::metadata::JPEG_EXIF_PREFIX.len() <= 65533 {
+            let mut payload = Vec::with_capacity(super::metadata::JPEG_EXIF_PREFIX.len() + exif.len());
+            payload.extend_from_slice(super::metadata::JPEG_EXIF_PREFIX);
+            payload.extend_from_slice(exif);
+            comp.write_marker(mozjpeg::Marker::APP(1), &payload);
+        }
+    }
+
     // JPEG doesn't support alpha — convert RGBA → RGB by dropping alpha
     let rgb: Vec<u8> = decoded.rgba.chunks_exact(4)
         .flat_map(|p| [p[0], p[1], p[2]])
@@ -57,14 +69,16 @@ pub fn encode(decoded: &DecodedImage, quality: u32, progressive: bool) -> Result
 /// Lossless JPEG transcode — `jpegtran -optimize -progressive` equivalent
 /// (rubric §4 rule 1). Operates on DCT coefficients: pixels are untouched, so
 /// there is zero quality risk. Rebuilds optimized Huffman tables and a
-/// progressive scan script. ICC (APP2) markers are copied through; all other
-/// metadata is stripped.
+/// progressive scan script. `keep_icc` copies APP2 (ICC) markers through;
+/// `keep_metadata` copies APP1 (EXIF/XMP) markers through; everything else is
+/// stripped.
 ///
 /// Callers must check EXIF orientation first: this path keeps pixels exactly
 /// as stored, and stripping the orientation tag without rotating would make
-/// the image display wrong. Skip it when orientation ≠ 1.
-pub fn optimize_lossless(src_bytes: &[u8]) -> Result<EncodedFile, EncodeError> {
-    let bytes = std::panic::catch_unwind(|| unsafe { transcode_coefficients(src_bytes) })
+/// the image display wrong. Skip it when orientation ≠ 1. (With orientation
+/// = 1 the APP1 copy is safe as-is.)
+pub fn optimize_lossless(src_bytes: &[u8], keep_icc: bool, keep_metadata: bool) -> Result<EncodedFile, EncodeError> {
+    let bytes = std::panic::catch_unwind(|| unsafe { transcode_coefficients(src_bytes, keep_icc, keep_metadata) })
         .map_err(|p| {
             let msg = p
                 .downcast_ref::<String>()
@@ -102,10 +116,11 @@ unsafe fn make_error_mgr() -> Box<mozjpeg_sys::jpeg_error_mgr> {
     err
 }
 
-unsafe fn transcode_coefficients(src: &[u8]) -> Vec<u8> {
+unsafe fn transcode_coefficients(src: &[u8], keep_icc: bool, keep_metadata: bool) -> Vec<u8> {
     use mozjpeg_sys::*;
     use std::os::raw::{c_int, c_ulong, c_void};
 
+    const JPEG_APP1: c_int = 0xE1;
     const JPEG_APP2: c_int = 0xE2;
 
     let mut src_err = make_error_mgr();
@@ -115,7 +130,13 @@ unsafe fn transcode_coefficients(src: &[u8]) -> Vec<u8> {
 
     jpeg_mem_src(&mut srcinfo, src.as_ptr(), src.len() as c_ulong);
     // Keep ICC profile chunks so colors survive the transcode
-    jpeg_save_markers(&mut srcinfo, JPEG_APP2, 0xFFFF);
+    if keep_icc {
+        jpeg_save_markers(&mut srcinfo, JPEG_APP2, 0xFFFF);
+    }
+    // Keep EXIF (and XMP — both ride in APP1) when the user opted in
+    if keep_metadata {
+        jpeg_save_markers(&mut srcinfo, JPEG_APP1, 0xFFFF);
+    }
     jpeg_read_header(&mut srcinfo, 1);
     let coefficients = jpeg_read_coefficients(&mut srcinfo);
 
@@ -196,7 +217,7 @@ mod tests {
         // decoded pixels must match the source exactly.
         let src = fixture("landscape.jpg");
         let bytes = std::fs::read(&src).unwrap();
-        let out = optimize_lossless(&bytes).unwrap();
+        let out = optimize_lossless(&bytes, true, false).unwrap();
         let before = decode(&src, ImageExt::Jpeg).unwrap();
         let after = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
         let _ = std::fs::remove_file(&out.tmp_path);
@@ -210,7 +231,7 @@ mod tests {
         // transcode should save bytes.
         let src = fixture("landscape.jpg");
         let bytes = std::fs::read(&src).unwrap();
-        let out = optimize_lossless(&bytes).unwrap();
+        let out = optimize_lossless(&bytes, true, false).unwrap();
         let _ = std::fs::remove_file(&out.tmp_path);
         assert!(
             out.bytes < bytes.len() as u64,
@@ -223,7 +244,7 @@ mod tests {
     #[test]
     fn lossless_transcode_rejects_corrupt_input() {
         let bytes = std::fs::read(fixture("corrupt.jpg")).unwrap();
-        assert!(optimize_lossless(&bytes).is_err());
+        assert!(optimize_lossless(&bytes, true, false).is_err());
     }
 
     #[test]
@@ -245,9 +266,41 @@ mod tests {
         let original = decode(&src, ImageExt::Jpeg).unwrap();
         assert!(original.icc_profile.is_some(), "fixture must carry ICC");
         let bytes = std::fs::read(&src).unwrap();
-        let out = optimize_lossless(&bytes).unwrap();
+        let out = optimize_lossless(&bytes, true, false).unwrap();
         let back = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
         let _ = std::fs::remove_file(&out.tmp_path);
         assert_eq!(back.icc_profile, original.icc_profile);
+    }
+
+    #[test]
+    fn exif_roundtrips_through_lossy_encode() {
+        let mut decoded = decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
+        let exif = crate::encoder::metadata::test_exif(1, false);
+        decoded.exif = Some(exif.clone());
+        let out = encode(&decoded, 80, true).unwrap();
+        let back = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
+        let _ = std::fs::remove_file(&out.tmp_path);
+        assert_eq!(back.exif.as_deref(), Some(exif.as_slice()));
+    }
+
+    #[test]
+    fn lossless_transcode_keeps_or_strips_exif_by_flag() {
+        // Build a JPEG that carries EXIF via our own encoder, then transcode
+        let mut decoded = decode(&fixture("landscape.jpg"), ImageExt::Jpeg).unwrap();
+        let exif = crate::encoder::metadata::test_exif(1, true);
+        decoded.exif = Some(exif.clone());
+        let tagged = encode(&decoded, 80, true).unwrap();
+        let bytes = std::fs::read(&tagged.tmp_path).unwrap();
+        let _ = std::fs::remove_file(&tagged.tmp_path);
+
+        let kept = optimize_lossless(&bytes, true, true).unwrap();
+        let back = decode(&kept.tmp_path, ImageExt::Jpeg).unwrap();
+        let _ = std::fs::remove_file(&kept.tmp_path);
+        assert_eq!(back.exif.as_deref(), Some(exif.as_slice()), "keep_metadata=true must carry EXIF");
+
+        let stripped = optimize_lossless(&bytes, true, false).unwrap();
+        let back = decode(&stripped.tmp_path, ImageExt::Jpeg).unwrap();
+        let _ = std::fs::remove_file(&stripped.tmp_path);
+        assert!(back.exif.is_none(), "keep_metadata=false must strip EXIF");
     }
 }

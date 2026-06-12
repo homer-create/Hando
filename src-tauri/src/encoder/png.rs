@@ -20,6 +20,13 @@ pub fn encode(decoded: &DecodedImage, quality: u32, oxipng_level: u8) -> Result<
     let optimized = oxipng::optimize_from_memory(&png_bytes, &opts)
         .map_err(|e| EncodeError::Encode(format!("oxipng: {e}")))?;
 
+    // EXIF passthrough (opt-in): splice the eXIf chunk after oxipng so no
+    // later pass can strip it. On splice failure keep the untagged bytes.
+    let optimized = match decoded.exif.as_deref().filter(|e| !e.is_empty()) {
+        Some(exif) => super::metadata::embed_png_exif(&optimized, exif).unwrap_or(optimized),
+        None => optimized,
+    };
+
     let mut tmp = NamedTempFile::new()?;
     tmp.write_all(&optimized)?;
     tmp.flush()?;
@@ -114,6 +121,19 @@ mod tests {
                 Some(profile.as_slice()),
                 "q{q}: iCCP must survive the encode (and oxipng)"
             );
+        }
+    }
+
+    #[test]
+    fn exif_roundtrips_through_quantized_and_lossless_encode() {
+        let mut decoded = decode(&fixture("screenshot.png"), ImageExt::Png).unwrap();
+        let exif = crate::encoder::metadata::test_exif(1, false);
+        decoded.exif = Some(exif.clone());
+        for q in [80u32, 100] {
+            let out = encode(&decoded, q, 2).unwrap();
+            let back = decode(&out.tmp_path, ImageExt::Png).unwrap();
+            let _ = std::fs::remove_file(&out.tmp_path);
+            assert_eq!(back.exif.as_deref(), Some(exif.as_slice()), "q{q}: eXIf must survive");
         }
     }
 

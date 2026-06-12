@@ -1,7 +1,7 @@
 // Copyright (C) 2025 謝昇運 (homershie) <homerxworkshop@gmail.com>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::{icc, EncodeError, ImageExt};
+use super::{icc, metadata, EncodeError, ImageExt};
 use image::ImageDecoder;
 use std::io::BufReader;
 use std::path::Path;
@@ -11,12 +11,17 @@ pub struct DecodedImage {
     pub width: u32,
     pub height: u32,
     pub icc_profile: Option<Vec<u8>>,
+    /// Raw EXIF (TIFF stream, no `Exif\0\0` prefix). For rotated JPEGs the
+    /// Orientation tag is already normalized to 1 because the pixels are
+    /// rotated upright at decode. Re-embedded only when
+    /// `EncodeOpts.keep_metadata` is set (see `encoder::encode`).
+    pub exif: Option<Vec<u8>>,
 }
 
 pub fn decode(src: &Path, ext: ImageExt) -> Result<DecodedImage, EncodeError> {
     match ext {
         ImageExt::Jpeg => decode_jpeg(src),
-        ImageExt::Png | ImageExt::Webp => decode_via_image_crate(src),
+        ImageExt::Png | ImageExt::Webp => decode_via_image_crate(src, ext),
         // The image crate's `avif` feature is encode-only; decoding goes
         // through avif-decode (bundled libaom), otherwise AVIF inputs fail
         // at runtime with "format not supported".
@@ -67,6 +72,8 @@ fn decode_avif(src: &Path) -> Result<DecodedImage, EncodeError> {
         // avif-decode exposes no ICC API; pull the colr/prof box straight
         // from the container so wide-gamut AVIFs keep their profile
         icc_profile: icc::extract_avif_icc(&bytes),
+        // EXIF lives in an ISOBMFF item with per-file offsets; not extracted
+        exif: None,
     })
 }
 
@@ -74,7 +81,7 @@ fn decode_jpeg(src: &Path) -> Result<DecodedImage, EncodeError> {
     let bytes = std::fs::read(src)?;
     let orientation = read_exif_orientation(&bytes).unwrap_or(1);
 
-    let d = mozjpeg::Decompress::with_markers(&[mozjpeg::Marker::APP(2)])
+    let d = mozjpeg::Decompress::with_markers(&[mozjpeg::Marker::APP(1), mozjpeg::Marker::APP(2)])
         .from_mem(&bytes)
         .map_err(|e| EncodeError::Decode(format!("mozjpeg open: {e}")))?;
     // Reassemble the ICC profile from APP2 markers before `rgba()` consumes
@@ -84,6 +91,14 @@ fn decode_jpeg(src: &Path) -> Result<DecodedImage, EncodeError> {
             .filter(|m| m.marker == mozjpeg::Marker::APP(2))
             .map(|m| m.data),
     );
+    // EXIF rides in the APP1 marker tagged `Exif\0\0` (the other common APP1
+    // use, XMP, has a different prefix and is ignored)
+    let mut exif = d
+        .markers()
+        .filter(|m| m.marker == mozjpeg::Marker::APP(1))
+        .find_map(|m| m.data.strip_prefix(metadata::JPEG_EXIF_PREFIX))
+        .filter(|t| !t.is_empty())
+        .map(|t| t.to_vec());
     let mut d = d.rgba()
         .map_err(|e| EncodeError::Decode(format!("mozjpeg rgba: {e}")))?;
     let width = d.width() as u32;
@@ -93,14 +108,30 @@ fn decode_jpeg(src: &Path) -> Result<DecodedImage, EncodeError> {
     d.finish().ok();
 
     let rgba: Vec<u8> = pixels.into_iter().flat_map(|p| p.into_iter()).collect();
-    let mut img = DecodedImage { rgba, width, height, icc_profile: icc };
+
+    // Pixels get rotated upright below, so a kept EXIF blob must not carry
+    // the rotation a second time. If the tag can't be patched, drop the blob
+    // rather than ship a wrongly-rotating file.
+    if orientation > 1 {
+        exif = exif.and_then(|mut blob| {
+            metadata::set_orientation_upright(&mut blob).then_some(blob)
+        });
+    }
+
+    let mut img = DecodedImage { rgba, width, height, icc_profile: icc, exif };
     apply_orientation(&mut img, orientation);
     Ok(img)
 }
 
-fn decode_via_image_crate(src: &Path) -> Result<DecodedImage, EncodeError> {
-    let reader = image::ImageReader::open(src)
-        .map_err(|e| EncodeError::Decode(format!("open: {e}")))?
+fn decode_via_image_crate(src: &Path, ext: ImageExt) -> Result<DecodedImage, EncodeError> {
+    let bytes = std::fs::read(src)?;
+    // Container-level metadata before pixel decode (PNG eXIf / WebP EXIF chunk)
+    let exif = match ext {
+        ImageExt::Png => metadata::extract_png_exif(&bytes),
+        ImageExt::Webp => metadata::extract_webp_exif(&bytes),
+        _ => None,
+    };
+    let reader = image::ImageReader::new(std::io::Cursor::new(&bytes))
         .with_guessed_format()
         .map_err(|e| EncodeError::Decode(format!("guess format: {e}")))?;
     let mut decoder = reader.into_decoder()
@@ -116,6 +147,7 @@ fn decode_via_image_crate(src: &Path) -> Result<DecodedImage, EncodeError> {
         width,
         height,
         icc_profile: icc,
+        exif,
     })
 }
 

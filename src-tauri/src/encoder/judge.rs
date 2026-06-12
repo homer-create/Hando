@@ -204,6 +204,7 @@ mod tests {
             width: img.width,
             height: img.height,
             icc_profile: None,
+            exif: None,
         };
         assert!(!pixels_identical(&img, &tweaked));
     }
@@ -258,7 +259,7 @@ mod tests {
             let row_start = (((y + dy) * disguised.width + dx) * 4) as usize;
             rgba.extend_from_slice(&disguised.rgba[row_start..row_start + (w * 4) as usize]);
         }
-        let cropped = DecodedImage { rgba, width: w, height: h, icc_profile: None };
+        let cropped = DecodedImage { rgba, width: w, height: h, icc_profile: None, exif: None };
         let b = jpeg_blockiness(&cropped);
         assert!(
             b >= JPEG_BLOCKINESS_THRESHOLD,
@@ -294,6 +295,7 @@ mod tests {
             width: 64,
             height: 64,
             icc_profile: None,
+            exif: None,
         };
         assert!(jpeg_blockiness(&flat) < JPEG_BLOCKINESS_THRESHOLD);
     }
