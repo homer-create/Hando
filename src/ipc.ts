@@ -21,6 +21,10 @@ export interface EncodeOpts {
   mode: 'auto' | 'manual';
   /** ssimulacra2 target S for auto mode */
   targetQuality: number;
+  /** keep EXIF metadata in outputs (default false = strip) */
+  keepMetadata: boolean;
+  /** keep ICC color profile in outputs (default true) */
+  keepIcc: boolean;
 }
 
 export interface CompressArgs {
@@ -61,6 +65,8 @@ export function toOpts(s: Settings): EncodeOpts {
     jpegProgressive: s.jpegProgressive,
     mode: s.mode,
     targetQuality: PRESET_TARGETS[s.preset],
+    keepMetadata: s.keepMetadata,
+    keepIcc: s.keepIcc,
   };
 }
 
