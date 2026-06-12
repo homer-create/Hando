@@ -5,6 +5,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.2.1] — 2026-06-13
+
+### Added
+- **metadata（EXIF）保留選項** — `EncodeOpts` 新增 `keepMetadata`（預設關＝沿用剝除行為，隱私安全）；開啟時 decode 端抽出 EXIF（JPEG APP1 / PNG eXIf / WebP EXIF chunk），encode 端重嵌（JPEG APP1 / PNG eXIf 手術 / WebP VP8X+EXIF chunk），旋轉來源的 orientation tag 自動歸 1 避免二次旋轉；JPEG 無損轉碼路徑同步支援。已知限制：AVIF 輸出（ravif 無 metadata API）與 AVIF 來源（ISOBMFF Exif item 未解析）不支援
+- **ICC 保留開關** — `EncodeOpts` 新增 `keepIcc`（預設開＝沿用 passthrough 行為）；關閉時 decode 後即丟棄 profile，所有輸出不再帶 ICC，且 AVIF 的 10% keep-bar 回到一般 2%
+- **設定 UI「輸出」分頁新增 EXIF / ICC 勾選** — 各帶白話說明（含 AVIF 限制提示），7 語系補齊（新 key `settings.keepMetadata` / `keepMetadataHint` / `keepIcc` / `keepIccHint`）
+- **manual 模式畫質提示** — 手動模式區頂端顯示說明：直接套用設定品質、不做自動畫質檢查、重壓已壓縮圖會累積損失（僅前端提示，不動 encoder 行為）
+- **進階旋鈕白話 helper 文案** — 四個進階旋鈕各加一行 muted 子說明（`.settings-hint`），新增 i18n key `settings.advancedHint` / `manualHint` / `avifSpeedHint` / `oxipngLevelHint` / `webpMethodHint` / `jpegProgressiveHint`，7 個語系（en / zh-TW / zh-CN / ja / ko / es / pt）全數補齊
+
+### Changed
+- **拖放區加高** — dropzone 以 flex 置中提示文字並加 `min-height: min(70vh, calc(100vh - 150px))`（隨視窗高度伸縮，原本僅 padding 撐高約 50px），拖放目標成為畫面主體；上限 `calc(100vh - 160px)` 保留工具列／狀態列／列表提示的固定空間（150px 實測在視窗 <534px 時仍差幾 px 會冒捲軸——Windows CJK 字型行高比估算高；160px 為實機調校值），矮視窗（如 minHeight 400 的最小視窗）下不再把檔案列表壓出捲軸；檔案列表以 `flex: 1` 吃剩餘空間，空狀態提示（「還沒有檔案…」）同步縮小淡化（11px、opacity 0.7）
+- **捲軸樣式品牌化** — 全 app 自訂 scrollbar（設定面板、檔案列表共用）：8px 細軌、透明 track、半透明品牌紫 thumb（`color-mix` 45% accent）、hover/拖曳時全亮 accent；取代與品牌色不符的系統預設捲軸，亮暗主題皆適用（WebView2 / WKWebView 均為 WebKit 系，`::-webkit-scrollbar` 全平台覆蓋）
+- **進階區改為預設收合** — avifSpeed / oxipng / webpMethod / jpegProgressive 四項包進原生 `<details>`，預設只顯示「進階」標題，並加一行說明（只影響檔案大小與速度、不改畫質），降低設定面板的視覺負擔
+- **進階選項標籤去術語化** — 拿掉「oxipng」「method」等程式詞彙，改為一般使用者看得懂的名稱（如「PNG 壓縮用力程度」「JPEG 漸進式載入」「AVIF 編碼速度」），7 個語系同步調整
+- **設定面板改三分頁** — 一般（外觀＋語言）／壓縮（模式＋畫質目標＋手動滑桿＋進階）／輸出（附帶 WebP/AVIF、EXIF/ICC、回收筒），面板不再過長；分頁狀態在語言切換重建後保留（新 key `settings.tabGeneral` / `tabCompression` / `tabOutput` ×7 語系）
+- **進階選項只在手動模式顯示** — 自動模式有自己的旋鈕守門（大圖 avifSpeed/oxipng 覆寫），進階四項移入手動區，自動模式介面更乾淨
+
+### Fixed
+- **Windows dev server 起不來（`EACCES ::1:1420`）** — Vite dev port 1420 與 HMR port 1421 落在 Windows winnat/Hyper-V 保留的排除埠範圍（1337–1436）內，`npm run tauri dev` 直接以權限錯誤中止；改為 5173 / 5174（落在所有保留範圍之外），`vite.config.ts` 與 `tauri.conf.json` 的 `devUrl` 同步更新
+- **壓縮進度卡在 20% 不動** — auto 模式的品質搜尋（最耗時階段）原本整段不回報進度，進度條停在 20% 後直接跳 75%；現在每輪 encode+judge 探測都回報（20→72% 平滑前進），companion 搜尋亦逐輪回報（78→84%）
+- **主題切換會清掉模式／畫質目標段的選取狀態** — theme-seg 的 click handler 原本對整個面板的 `.seg-btn` 做 toggle，誤傷其他段；改為只作用於自己的段
+- **語言切換即時生效** — 設定面板的語言下拉切換後，面板用新語系原地重建（`setLocale` 後重呼叫 `openSettingsPanel()`），不再需要關閉重開才看到新語言；statusbar / file-list / toolbar / dropzone 原本就各自訂閱 locale 變更，維持不動
+- **設定面板小視窗被切掉** — `.settings-panel` 加上 `max-height: calc(100vh - 40px)` 與 `overflow-y: auto`，內容過長時面板內部可捲動，所有項目（含完成按鈕）都到得了
+
+---
+
 ## [0.2.0] — 2026-06-11
 
 ### Changed
