@@ -8,6 +8,9 @@ export interface Messages {
   statusbar: { progress: string; saved: string; trashHint: string; trashShow: string };
   settings: {
     title: string;
+    tabGeneral: string;
+    tabCompression: string;
+    tabOutput: string;
     language: string;
     languageAuto: string;
     jpegQuality: string;
@@ -29,10 +32,20 @@ export interface Messages {
     presetBalanced: string;
     presetAggressive: string;
     advanced: string;
+    advancedHint: string;
+    manualHint: string;
     avifSpeed: string;
+    avifSpeedHint: string;
     oxipngLevel: string;
+    oxipngLevelHint: string;
     webpMethod: string;
+    webpMethodHint: string;
     jpegProgressive: string;
+    jpegProgressiveHint: string;
+    keepMetadata: string;
+    keepMetadataHint: string;
+    keepIcc: string;
+    keepIccHint: string;
     themeDark: string;
   };
   confirm: { quitProcessing: string };
@@ -55,6 +68,9 @@ const messages: Messages = {
   },
   settings: {
     title: 'Settings',
+    tabGeneral: 'General',
+    tabCompression: 'Compression',
+    tabOutput: 'Output',
     language: 'Language',
     languageAuto: 'Auto detect (system)',
     jpegQuality: 'JPEG quality',
@@ -76,10 +92,20 @@ const messages: Messages = {
     presetBalanced: 'Balanced',
     presetAggressive: 'Aggressive',
     advanced: 'Advanced',
-    avifSpeed: 'AVIF speed',
-    oxipngLevel: 'PNG effort (oxipng)',
-    webpMethod: 'WebP effort (method)',
-    jpegProgressive: 'Progressive JPEG',
+    advancedHint: 'These only affect file size and encoding speed — they never change image quality.',
+    manualHint: 'Manual mode applies your quality settings directly, with no automatic quality check; re-compressing already-compressed images accumulates quality loss.',
+    avifSpeed: 'AVIF encoding speed',
+    avifSpeedHint: 'Slower = smaller files but a longer wait; faster = saves time, slightly larger files. No effect on quality.',
+    oxipngLevel: 'PNG compression effort',
+    oxipngLevelHint: 'How hard PNG lossless compression tries. Higher = a bit smaller but slower; quality is completely unchanged.',
+    webpMethod: 'WebP compression effort',
+    webpMethodHint: 'How hard the WebP encoder tries. Higher = smaller but slower. No effect on quality.',
+    jpegProgressive: 'JPEG progressive loading',
+    jpegProgressiveHint: 'On: the image sharpens gradually as it loads on the web, and is usually a bit smaller (recommended). Off: faster encoding but noticeably larger files.',
+    keepMetadata: 'Keep photo info (EXIF)',
+    keepMetadataHint: 'Keeps capture time, camera model, GPS location, etc. Turn off for privacy; files also get a bit smaller. AVIF output cannot carry it yet.',
+    keepIcc: 'Keep color profile (ICC)',
+    keepIccHint: 'Keeps colors looking the same across screens — recommended on. Turning it off can shift colors in vivid photos. AVIF output cannot carry it yet.',
     themeDark: 'Dark',
   },
   confirm: { quitProcessing: '{count} files still processing. Quit anyway?' },

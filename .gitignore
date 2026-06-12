@@ -15,6 +15,10 @@ logs/
 .worktrees/
 src-tauri/target/
 src-tauri/.cargo/
+src-tauri/binaries/
+
+# Local agent/tooling state
+.claude/
 
 # Editor
 .vscode/*

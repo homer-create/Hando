@@ -12,6 +12,7 @@ pub mod event_sink;
 pub mod icc;
 pub mod judge;
 pub mod jpeg;
+pub mod metadata;
 pub mod png;
 pub mod webp;
 pub mod avif;
@@ -83,6 +84,16 @@ pub struct EncodeOpts {
     /// lossless / 80 balanced / 70 aggressive (docs/calibration.md).
     #[serde(default = "default_target_quality")]
     pub target_quality: f64,
+    /// Keep EXIF metadata (capture time, camera model, GPS, …) in the output.
+    /// Off by default: stripping is the historical behavior and the privacy-
+    /// safe choice. AVIF output can't carry it (ravif has no metadata API).
+    #[serde(default)]
+    pub keep_metadata: bool,
+    /// Keep the ICC color profile. On by default — dropping it shifts colors
+    /// on wide-gamut sources (rubric §0.5). AVIF output can't carry it either
+    /// way (ravif is nclx-only).
+    #[serde(default = "default_true")]
+    pub keep_icc: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -117,6 +128,8 @@ impl Default for EncodeOpts {
             jpeg_progressive: true,
             mode: EncodeMode::Manual,
             target_quality: default_target_quality(),
+            keep_metadata: false,
+            keep_icc: true,
         }
     }
 }
@@ -175,14 +188,29 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
     };
 
     progress(5);
-    let decoded = decode::decode(req.src_path, req.ext)?;
+    let mut decoded = decode::decode(req.src_path, req.ext)?;
+    // User opt-outs: clear what the encoders would otherwise re-embed
+    if !req.opts.keep_icc {
+        decoded.icc_profile = None;
+    }
+    if !req.opts.keep_metadata {
+        decoded.exif = None;
+    }
     progress(20);
     let src_bytes = std::fs::metadata(req.src_path)?.len();
 
     let auto_mode = req.opts.mode == EncodeMode::Auto;
 
     let mut main = if auto_mode {
-        match auto::encode_auto(req.src_path, req.ext, &decoded, req.opts, src_bytes)? {
+        // The quality search is the slow part (several encode+judge rounds);
+        // advance the bar per probe so it doesn't sit at 20% then jump to 75%
+        let probes = std::cell::Cell::new(0u32);
+        let on_probe = || {
+            let i = probes.get() + 1;
+            probes.set(i);
+            progress(20 + (i * 8).min(52) as u8); // 28, 36, … capped at 72
+        };
+        match auto::encode_auto(req.src_path, req.ext, &decoded, req.opts, src_bytes, Some(&on_probe))? {
             Some(f) => f,
             // No candidate cleared the quality gates — nothing can be
             // improved within the target, which the UI reports as a skip.
@@ -205,7 +233,7 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
         // gain, the lossless DCT transcode often still shaves a few percent
         // with zero quality risk. Auto mode already tried the transcode as a
         // candidate, so this only applies to manual mode.
-        match (!auto_mode).then(|| jpeg_lossless_fallback(req.src_path, req.ext, src_bytes)).flatten() {
+        match (!auto_mode).then(|| jpeg_lossless_fallback(req.src_path, req.ext, src_bytes, req.opts)).flatten() {
             Some(better) => main = better,
             None => return Ok(EncodeOutcome::SkippedNoGain { src_bytes }),
         }
@@ -217,9 +245,19 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
         req.ext, req.src_path, src_bytes, &decoded, req.opts.target_quality,
     );
 
+    // Companion searches advance 78→84 per probe (AVIF auto searches are the
+    // slow tail; without this the bar parks at 78)
+    let cprobes = std::cell::Cell::new(0u32);
+    let on_cprobe = || {
+        let i = cprobes.get() + 1;
+        cprobes.set(i);
+        progress(78 + i.min(6) as u8);
+    };
+
     if req.opts.emit_webp && req.ext != ImageExt::Webp {
+        progress(77);
         let result = if auto_mode {
-            auto::encode_companion_auto(&decoded, ImageExt::Webp, companion_gate, req.opts)
+            auto::encode_companion_auto(&decoded, ImageExt::Webp, companion_gate, req.opts, Some(&on_cprobe))
         } else {
             webp::encode(&decoded, req.opts.webp_quality, req.opts.webp_method)
         };
@@ -227,12 +265,10 @@ pub fn encode(req: EncodeRequest) -> Result<EncodeOutcome, EncodeError> {
             Ok(f)  => companions.push(f),
             Err(e) => companion_errors.push(CompanionError { ext: ImageExt::Webp, msg: e.to_string() }),
         }
-        // WebP is fast; emit a checkpoint so users see movement before the slow AVIF step
-        progress(78);
     }
     if req.opts.emit_avif && req.ext != ImageExt::Avif {
         let result = if auto_mode {
-            auto::encode_companion_auto(&decoded, ImageExt::Avif, companion_gate, req.opts)
+            auto::encode_companion_auto(&decoded, ImageExt::Avif, companion_gate, req.opts, Some(&on_cprobe))
         } else {
             avif::encode(&decoded, req.opts.avif_quality, req.opts.avif_speed)
         };
@@ -258,7 +294,7 @@ fn keep_bar(main_ext: ImageExt, has_icc: bool) -> u64 {
 /// Try the lossless JPEG transcode and keep it only if it clears the same 2%
 /// gain bar. Skipped for EXIF-rotated sources: the transcode keeps pixels as
 /// stored but strips the orientation tag, which would display wrong.
-fn jpeg_lossless_fallback(src_path: &Path, ext: ImageExt, src_bytes: u64) -> Option<EncodedFile> {
+fn jpeg_lossless_fallback(src_path: &Path, ext: ImageExt, src_bytes: u64, opts: &EncodeOpts) -> Option<EncodedFile> {
     if ext != ImageExt::Jpeg {
         return None;
     }
@@ -266,7 +302,7 @@ fn jpeg_lossless_fallback(src_path: &Path, ext: ImageExt, src_bytes: u64) -> Opt
     if decode::read_exif_orientation(&bytes).unwrap_or(1) != 1 {
         return None;
     }
-    let out = jpeg::optimize_lossless(&bytes).ok()?;
+    let out = jpeg::optimize_lossless(&bytes, opts.keep_icc, opts.keep_metadata).ok()?;
     if out.bytes * 100 < src_bytes * 98 {
         Some(out)
     } else {
@@ -479,7 +515,7 @@ mod tests {
         ).unwrap();
         std::fs::write(tmp.path(), &buf).unwrap();
 
-        let out = jpeg_lossless_fallback(tmp.path(), ImageExt::Jpeg, buf.len() as u64);
+        let out = jpeg_lossless_fallback(tmp.path(), ImageExt::Jpeg, buf.len() as u64, &EncodeOpts::default());
         let out = out.expect("baseline JPEG should gain ≥2% from lossless transcode");
         assert!(out.bytes < buf.len() as u64);
         // and pixels must be identical
@@ -494,7 +530,7 @@ mod tests {
         let path = fixture("portrait_exif_rotated.jpg");
         let src_bytes = std::fs::metadata(&path).unwrap().len();
         assert!(
-            jpeg_lossless_fallback(&path, ImageExt::Jpeg, src_bytes).is_none(),
+            jpeg_lossless_fallback(&path, ImageExt::Jpeg, src_bytes, &EncodeOpts::default()).is_none(),
             "EXIF-rotated JPEG must not take the lossless transcode path"
         );
     }

@@ -36,6 +36,12 @@ pub fn encode(decoded: &DecodedImage, quality: u32, method: u8) -> Result<Encode
         .and_then(|profile| icc::embed_webp_icc(bytes, profile, decoded.width, decoded.height));
     let bytes = tagged.as_deref().unwrap_or(bytes);
 
+    // EXIF passthrough (opt-in): same container surgery, EXIF chunk at the end
+    let exif_tagged = decoded.exif.as_deref()
+        .filter(|e| !e.is_empty())
+        .and_then(|exif| super::metadata::embed_webp_exif(bytes, exif, decoded.width, decoded.height));
+    let bytes = exif_tagged.as_deref().unwrap_or(bytes);
+
     let mut tmp = NamedTempFile::new()?;
     tmp.write_all(bytes)?;
     tmp.flush()?;
@@ -93,6 +99,27 @@ mod tests {
             let back = decode(&out.tmp_path, ImageExt::Webp).unwrap();
             let _ = std::fs::remove_file(&out.tmp_path);
             assert_eq!(back.icc_profile.as_deref(), Some(profile.as_slice()), "q{q}");
+        }
+    }
+
+    #[test]
+    fn exif_roundtrips_with_and_without_icc() {
+        // Both metadata chunks at once exercises the two-pass container
+        // surgery (ICC then EXIF on the already-upgraded VP8X container)
+        let mut decoded = decode(&fixture("transparent.png"), ImageExt::Png).unwrap();
+        let exif = crate::encoder::metadata::test_exif(1, true);
+        decoded.exif = Some(exif.clone());
+        for with_icc in [false, true] {
+            decoded.icc_profile = with_icc.then(|| crate::encoder::icc::test_profile(3000));
+            for q in [80u32, 100] {
+                let out = encode(&decoded, q, 4).unwrap();
+                let back = decode(&out.tmp_path, ImageExt::Webp).unwrap();
+                let _ = std::fs::remove_file(&out.tmp_path);
+                assert_eq!(back.exif.as_deref(), Some(exif.as_slice()), "q{q} icc={with_icc}");
+                if with_icc {
+                    assert!(back.icc_profile.is_some(), "q{q}: ICC must survive the EXIF pass");
+                }
+            }
         }
     }
 

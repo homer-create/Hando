@@ -149,7 +149,7 @@ pub fn embed_webp_icc(webp: &[u8], icc: &[u8], canvas_w: u32, canvas_h: u32) -> 
     Some(out)
 }
 
-fn push_riff_chunk(out: &mut Vec<u8>, fourcc: &[u8], payload: &[u8]) {
+pub(crate) fn push_riff_chunk(out: &mut Vec<u8>, fourcc: &[u8], payload: &[u8]) {
     out.extend_from_slice(fourcc);
     out.extend_from_slice(&(payload.len() as u32).to_le_bytes());
     out.extend_from_slice(payload);
@@ -160,7 +160,7 @@ fn push_riff_chunk(out: &mut Vec<u8>, fourcc: &[u8], payload: &[u8]) {
 
 /// VP8L header: signature byte 0x2F, then a 32-bit LE word whose bit 28 is
 /// the alpha_is_used hint.
-fn vp8l_has_alpha(payload: &[u8]) -> bool {
+pub(crate) fn vp8l_has_alpha(payload: &[u8]) -> bool {
     payload.len() >= 5
         && payload[0] == 0x2F
         && (u32::from_le_bytes(payload[1..5].try_into().unwrap()) >> 28) & 1 == 1

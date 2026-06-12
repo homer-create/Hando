@@ -110,23 +110,29 @@ pub fn encode_auto(
     decoded: &DecodedImage,
     opts: &EncodeOpts,
     src_bytes: u64,
+    on_probe: Option<&dyn Fn()>,
 ) -> Result<Option<EncodedFile>, EncodeError> {
     let target = opts.target_quality;
     let gate = effective_gate(ext, src_path, src_bytes, decoded, target);
+    let probe = || {
+        if let Some(f) = on_probe { f() }
+    };
 
     match ext {
         ImageExt::Png => {
             // A-class: lossless and quantized candidates compete (rubric §5)
             let level = auto_oxipng_level(decoded, opts);
+            probe();
             let lossless = png::encode(decoded, 100, level).ok();
-            let quantized = search_min_quality(decoded, gate, ImageExt::Png, |q| {
+            let quantized = search_min_quality(decoded, gate, ImageExt::Png, on_probe, |q| {
                 png::encode(decoded, q, level)
             });
             Ok(pick_smaller(lossless, quantized))
         }
         ImageExt::Webp => {
+            probe();
             let lossless = webp::encode(decoded, 100, opts.webp_method).ok();
-            let lossy = search_min_quality(decoded, gate, ImageExt::Webp, |q| {
+            let lossy = search_min_quality(decoded, gate, ImageExt::Webp, on_probe, |q| {
                 webp::encode(decoded, q, opts.webp_method)
             });
             Ok(pick_smaller(lossless, lossy))
@@ -134,7 +140,12 @@ pub fn encode_auto(
         ImageExt::Jpeg => {
             let bytes = std::fs::read(src_path)?;
             let upright = decode::read_exif_orientation(&bytes).unwrap_or(1) == 1;
-            let transcoded = if upright { jpeg::optimize_lossless(&bytes).ok() } else { None };
+            let transcoded = if upright {
+                probe();
+                jpeg::optimize_lossless(&bytes, opts.keep_icc, opts.keep_metadata).ok()
+            } else {
+                None
+            };
 
             let bpp = judge::bits_per_pixel(src_bytes, decoded.width, decoded.height);
             let lossy = if bpp >= LOSSY_FUTILE_BPP {
@@ -146,7 +157,7 @@ pub fn encode_auto(
             } else if bpp >= B1_BPP_THRESHOLD || !upright {
                 // B1 (near-clean) — or rotated B2 where the transcode is
                 // unavailable and a tightly-gated re-encode is the only option
-                search_min_quality(decoded, gate, ImageExt::Jpeg, |q| {
+                search_min_quality(decoded, gate, ImageExt::Jpeg, on_probe, |q| {
                     jpeg::encode(decoded, q, opts.jpeg_progressive)
                 })
             } else {
@@ -160,7 +171,7 @@ pub fn encode_auto(
         ImageExt::Avif => {
             // No lossless transcode path exists for AVIF; tightly-gated re-encode
             let speed = auto_avif_speed(decoded, opts);
-            Ok(search_min_quality(decoded, gate, ImageExt::Avif, |q| {
+            Ok(search_min_quality(decoded, gate, ImageExt::Avif, on_probe, |q| {
                 avif::encode(decoded, q, speed)
             }))
         }
@@ -174,14 +185,15 @@ pub fn encode_companion_auto(
     companion_ext: ImageExt,
     gate: f64,
     opts: &EncodeOpts,
+    on_probe: Option<&dyn Fn()>,
 ) -> Result<EncodedFile, EncodeError> {
     let found = match companion_ext {
-        ImageExt::Webp => search_min_quality(decoded, gate, ImageExt::Webp, |q| {
+        ImageExt::Webp => search_min_quality(decoded, gate, ImageExt::Webp, on_probe, |q| {
             webp::encode(decoded, q, opts.webp_method)
         }),
         ImageExt::Avif => {
             let speed = auto_avif_speed(decoded, opts);
-            search_min_quality(decoded, gate, ImageExt::Avif, |q| {
+            search_min_quality(decoded, gate, ImageExt::Avif, on_probe, |q| {
                 avif::encode(decoded, q, speed)
             })
         }
@@ -206,6 +218,7 @@ fn search_min_quality(
     baseline: &DecodedImage,
     target: f64,
     ext: ImageExt,
+    on_probe: Option<&dyn Fn()>,
     encode_at: impl Fn(u32) -> Result<EncodedFile, EncodeError>,
 ) -> Option<EncodedFile> {
     let ladder: Vec<u32> = (1..=99).step_by(QUALITY_STEP as usize).collect();
@@ -213,6 +226,9 @@ fn search_min_quality(
     let mut best: Option<EncodedFile> = None;
 
     while lo <= hi {
+        // One probe = one encode+judge round; the caller maps these onto the
+        // progress bar so the UI moves during the slow search phase
+        if let Some(f) = on_probe { f() }
         let mid = (lo + hi) / 2;
         let q = ladder[mid];
         let Ok(out) = encode_at(q) else {
@@ -280,7 +296,7 @@ mod tests {
         let src_bytes = std::fs::metadata(&path).unwrap().len();
         let o = EncodeOpts { target_quality: 80.0, ..opts() };
 
-        let out = encode_auto(&path, ImageExt::Png, &baseline, &o, src_bytes)
+        let out = encode_auto(&path, ImageExt::Png, &baseline, &o, src_bytes, None)
             .unwrap()
             .expect("screenshot should have a passing candidate");
         let dec = decode(&out.tmp_path, ImageExt::Png).unwrap();
@@ -300,7 +316,7 @@ mod tests {
         let bpp = judge::bits_per_pixel(src_bytes, baseline.width, baseline.height);
         assert!(bpp < B1_BPP_THRESHOLD, "fixture assumption: low bpp, got {bpp}");
 
-        let out = encode_auto(&path, ImageExt::Jpeg, &baseline, &opts(), src_bytes)
+        let out = encode_auto(&path, ImageExt::Jpeg, &baseline, &opts(), src_bytes, None)
             .unwrap()
             .expect("lossless transcode should be available");
         let dec = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
@@ -323,7 +339,7 @@ mod tests {
         );
 
         let o = EncodeOpts { target_quality: 70.0, ..opts() };
-        let out = encode_auto(&path, ImageExt::Jpeg, &baseline, &o, src_bytes)
+        let out = encode_auto(&path, ImageExt::Jpeg, &baseline, &o, src_bytes, None)
             .unwrap()
             .expect("B1 camera JPEG should find a passing candidate");
         let dec = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
@@ -346,7 +362,7 @@ mod tests {
                 if i % 4 == 3 { 255 } else { (state >> 24) as u8 }
             })
             .collect();
-        let noise = DecodedImage { rgba, width: w, height: h, icc_profile: None };
+        let noise = DecodedImage { rgba, width: w, height: h, icc_profile: None, exif: None };
         let q100 = jpeg::encode(&noise, 100, true).unwrap();
         let tmp = tempfile::Builder::new().suffix(".jpg").tempfile().unwrap();
         std::fs::copy(&q100.tmp_path, tmp.path()).unwrap();
@@ -357,7 +373,7 @@ mod tests {
         let bpp = judge::bits_per_pixel(src_bytes, w, h);
         assert!(bpp >= LOSSY_FUTILE_BPP, "q100 noise should be futile-high bpp, got {bpp}");
 
-        let out = encode_auto(tmp.path(), ImageExt::Jpeg, &baseline, &opts(), src_bytes)
+        let out = encode_auto(tmp.path(), ImageExt::Jpeg, &baseline, &opts(), src_bytes, None)
             .unwrap()
             .expect("lossless transcode should be available");
         let dec = decode(&out.tmp_path, ImageExt::Jpeg).unwrap();
@@ -375,6 +391,7 @@ mod tests {
             width: w,
             height: h,
             icc_profile: None,
+            exif: None,
         };
         let small = dims(320, 240);
         let large = dims(1920, 1080); // 2,073,600 px ≥ 2MP
@@ -426,7 +443,7 @@ mod tests {
                 let src_bytes = std::fs::metadata(&path).unwrap().len();
                 let gate = effective_gate(ext, &path, src_bytes, &baseline, target);
                 let o = EncodeOpts { target_quality: target, ..opts() };
-                match encode_auto(&path, ext, &baseline, &o, src_bytes).unwrap() {
+                match encode_auto(&path, ext, &baseline, &o, src_bytes, None).unwrap() {
                     Some(out) => {
                         let dec = decode(&out.tmp_path, ext).unwrap();
                         let ok = judge::pixels_identical(&baseline, &dec)
