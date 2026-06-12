@@ -2,13 +2,15 @@
 
 A single-file desktop image optimizer for Windows and macOS. Drag images in, get smaller files out. No installer, no Node runtime, no companion folders.
 
-**Language:** English UI
+**Languages:** English · 繁體中文 · 简体中文 · 日本語 · 한국어 · Español · Português (auto-detected, switchable in Settings)
 
 ## Features
 
 - **Drag-and-drop** — drop images onto the window or click to browse
 - **JPEG, PNG, WebP, AVIF** — all four formats supported for both input and output
-- **Lossless-aware** — skips encoding if the result would be larger than the original
+- **Auto quality mode** (default) — searches for the smallest file that still clears a perceptual quality target (ssimulacra2), with three presets: visually lossless / balanced / aggressive. Already-compressed sources get a generation-loss guard instead of being blindly re-crunched. Manual per-format sliders are one click away
+- **Color & metadata control** — ICC color profiles pass through by default so wide-gamut photos don't shift; EXIF (capture time, GPS, …) is stripped by default for privacy, with a keep option. AVIF output can't carry either yet (encoder limitation)
+- **Never makes things worse** — skips the file when savings are negligible; JPEGs get a lossless DCT-transcode second chance before being skipped
 - **Undo** — one-click restore; originals are moved to Trash, not deleted
 - **Optional companion output** — export WebP or AVIF alongside the original format
 - **Portable** — single executable, no installation required
@@ -49,9 +51,10 @@ Replace `/path/to/Hando.app` with the actual location, e.g. `~/Downloads/Hando.a
 - **Rust** stable, ≥ 1.85.1
 - **Node.js** 20+ (only for the desktop frontend dev server — not bundled into the app)
 - Platform toolchain:
-  - **Windows**: Visual Studio 2022 Build Tools (Desktop development with C++) + **NASM** (`winget install nasm`)
+  - **Windows**: Visual Studio 2022 Build Tools (Desktop development with C++, includes CMake) + **NASM 2.15.05** (`winget install NASM.NASM --version 2.15.05`) + a `perl` on PATH (the one bundled with Git for Windows works: `<Git>\usr\bin`)
     - **Important**: Run `cargo` commands from the *"x64 Native Tools Command Prompt for VS 2022"* shell, or first invoke `vcvarsall.bat x64`. Otherwise `mozjpeg-sys` and `webp-sys` linker steps will fail with cryptic errors.
-  - **macOS**: Xcode Command Line Tools (`xcode-select --install`) + **NASM** (`brew install nasm`)
+  - **macOS**: Xcode Command Line Tools (`xcode-select --install`) + **NASM 2.15.05**
+  - **NASM must be 2.15.05** on both platforms — `libaom-sys`'s CMake probe rejects newer NASM releases with *"Unsupported nasm: multipass optimization not supported"* (this is why CI builds 2.15.05 from source)
 
 ### Commands
 
@@ -76,10 +79,11 @@ Briefly:
 
 ## Release process
 
-1. Bump version in `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`.
-2. Commit and tag: `git tag v0.2.0 && git push origin v0.2.0`.
-3. GitHub Actions builds Windows + macOS-universal artifacts and creates a draft release.
-4. Edit the draft release notes, then publish.
+1. Run the pre-release smoke test: `cargo test -- --ignored` (preset gates across representative fixtures).
+2. Bump version in `src-tauri/Cargo.toml` (+ `Cargo.lock`) and `src-tauri/tauri.conf.json`; date the `[Unreleased]` section in `CHANGELOG.md`.
+3. Commit and tag: `git tag v0.2.1 && git push origin v0.2.1`.
+4. GitHub Actions builds Windows + macOS-universal artifacts and creates a draft release.
+5. Edit the draft release notes, then publish.
 
 ## Sponsor
 
